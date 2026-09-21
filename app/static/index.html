@@ -216,6 +216,8 @@
   .dash-tip .tt-row span { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
   .dash-tip .tt-row.muted { color: var(--muted); border-top: 1px solid var(--line-2); margin-top: 4px; padding-top: 5px; }
   .dash-note { font-weight: 500; font-size: 12px; }
+  .tbl tfoot td { position: sticky; bottom: 0; background: #eef3fb; border-top: 2px solid #c9d6ea; font-weight: 700; padding: 10px 12px;
+    white-space: nowrap; }
   .dash-tbl { display: block !important; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
     box-shadow: var(--shadow); overflow: auto; max-height: none !important; }
 
@@ -522,14 +524,15 @@
         </div>
         <div class="dash-chart" id="dash-chart"></div>
       </div>
-      <div class="sec-title"><span>Chi tiết theo ngày</span>
-        <span class="dash-note">Tính trên tồn kho hiện tại của WMS – PA đã xuất hết khỏi kho không còn trong báo cáo</span></div>
+      <div class="sec-title"><span>Chi tiết theo ngày <span class="dash-note">· tính trên tồn kho hiện tại của WMS – PA đã xuất hết khỏi kho không còn trong báo cáo</span></span>
+        <span class="log-tools"><button type="button" class="link-btn" id="dash-export"><svg class="ic"><use href="#i-download"/></svg>Xuất Excel</button></span></div>
       <div class="tbl-wrap dash-tbl"><table class="tbl" id="dash-table">
         <thead><tr>
           <th>Ngày nhận hàng</th><th class="r">Tổng PA</th><th class="r">Đã định vị</th><th class="r">Chưa định vị</th>
           <th class="r">Chờ PickPack</th><th class="r">% đã định vị</th><th class="r">Đã scan trong app</th><th class="r">Dòng SKU</th><th class="r">Tổng SL</th>
         </tr></thead>
         <tbody></tbody>
+        <tfoot></tfoot>
       </table></div>
     </main>
 
@@ -1451,6 +1454,38 @@
   }));
   $('dash-reload').addEventListener('click', loadDashboard);
 
+  const DASH_COLS = ['pa', 'dinh_vi', 'chua', 'pickpack', 'app_scanned', 'sku_lines', 'qty'];
+  function dashTotals(rows) {
+    const t = {};
+    DASH_COLS.forEach((k) => { t[k] = rows.reduce((a, x) => a + (Number(x[k]) || 0), 0); });
+    return t;
+  }
+
+  // Xuất bảng chi tiết (kèm dòng Tổng cộng) ra CSV mở bằng Excel
+  $('dash-export').addEventListener('click', () => {
+    const r = dashData;
+    if (!r || !r.rows.length) { alert('Không có dữ liệu để xuất'); return; }
+    const pctNum = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : 0);
+    const cell = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const lines = [['Ngày nhận hàng', 'Tổng PA', 'Đã định vị', 'Chưa định vị', 'Chờ PickPack', 'Khác', '% đã định vị',
+      'Đã scan trong app', 'Dòng SKU', 'Tổng SL']];
+    r.rows.slice().reverse().forEach((x) => lines.push([x.date, x.pa, x.dinh_vi, x.chua, x.pickpack, x.khac,
+      pctNum(x.dinh_vi, x.pa), x.app_scanned, x.sku_lines, x.qty]));
+    const t = dashTotals(r.rows);
+    const khac = r.rows.reduce((a, x) => a + (x.khac || 0), 0);
+    lines.push(['Tổng cộng', t.pa, t.dinh_vi, t.chua, t.pickpack, khac, pctNum(t.dinh_vi, t.pa), t.app_scanned, t.sku_lines, t.qty]);
+    lines.push([]);
+    lines.push([`Kỳ báo cáo: ${dashDays ? dashDays + ' ngày gần nhất' : 'Tất cả'}`]);
+    lines.push([`Dữ liệu WMS lúc: ${r.wms_synced_at || '—'}`]);
+    lines.push(['Ghi chú: tính trên tồn kho hiện tại của WMS; PA đã xuất hết khỏi kho không còn trong báo cáo']);
+    const csv = '\ufeff' + lines.map((row) => row.map(cell).join(',')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = `dashboard-nhap-hang-${r.today.replace(/-/g, '')}${dashDays ? '-' + dashDays + 'ngay' : '-tatca'}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  });
+
   async function loadDashboard() {
     const seq = ++dashSeq;
     $('dash-meta').textContent = 'Đang tải…';
@@ -1497,6 +1532,13 @@
     $('dash-legend').innerHTML = DASH_SERIES.filter((s) => s.key !== 'khac' || sum('khac'))
       .map((s) => `<span class="lg-item"><i style="background:${s.color}"></i>${esc(s.label)}</span>`).join('');
     renderDashChart(days);
+    const tot = dashTotals(r.rows);
+    $('dash-table').querySelector('tfoot').innerHTML = r.rows.length ? `<tr>
+      <td>Tổng cộng <span class="dash-note">(${nf(r.rows.length)} ngày)</span></td>
+      <td class="r">${nf(tot.pa)}</td><td class="r">${nf(tot.dinh_vi)}</td><td class="r">${nf(tot.chua)}</td><td class="r">${nf(tot.pickpack)}</td>
+      <td class="r">${pct(tot.dinh_vi, tot.pa)}</td><td class="r">${nf(tot.app_scanned)}</td>
+      <td class="r">${nf(tot.sku_lines)}</td><td class="r">${nf(tot.qty)}</td>
+    </tr>` : '';
     $('dash-table').querySelector('tbody').innerHTML = r.rows.length ? r.rows.slice().reverse().map((x) => `<tr>
       <td class="code">${esc(x.date)}${x.iso === r.today ? ' <span class="badge in">Hôm nay</span>' : ''}</td>
       <td class="r"><b>${nf(x.pa)}</b></td>
