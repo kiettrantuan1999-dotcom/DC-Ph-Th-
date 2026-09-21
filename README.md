@@ -6,6 +6,7 @@ Web app chạy trên trình duyệt của PDA để định vị pallet nhập h
 - **ĐỊNH VỊ**: nhân viên scan → mã PA → mã vị trí, app tự lưu ngay khi scan xong vị trí.
 - **CHUYỂN**: chuyển PA từ vị trí lưu trữ này sang vị trí khác.
 - **LOG**: xem lịch sử, tìm theo mã PA / vị trí / nhân viên, lọc theo ngày, loại thao tác, hoặc chỉ của mình.
+- **WMS**: lấy báo cáo tồn kho theo Bin từ WMS Supra, xem / tìm / lọc (ví dụ các PA *Chờ lưu trữ*) và xuất Excel.
 - **USER**: admin tạo / sửa / khóa tài khoản, đặt lại mật khẩu.
 
 ### Luật vị trí
@@ -17,11 +18,11 @@ Web app chạy trên trình duyệt của PDA để định vị pallet nhập h
 
 ### Phân quyền
 
-| Loại tài khoản | ĐỊNH VỊ | CHUYỂN | LOG | USER |
-|---|:-:|:-:|:-:|:-:|
-| Admin | ✔ | ✔ | ✔ | ✔ |
-| Chuyên viên | ✔ | ✔ | ✔ | |
-| Nhân viên | ✔ | ✔ | | |
+| Loại tài khoản | ĐỊNH VỊ | CHUYỂN | LOG | WMS | USER |
+|---|:-:|:-:|:-:|:-:|:-:|
+| Admin | ✔ | ✔ | ✔ | ✔ | ✔ |
+| Chuyên viên | ✔ | ✔ | ✔ | ✔ | |
+| Nhân viên | ✔ | ✔ | | | |
 
 Để đổi quyền, sửa bảng `ROLES` trong `app/main.py`.
 
@@ -142,3 +143,17 @@ Trên Supabase, mở **Table Editor** để xem hai nguồn dữ liệu:
 - `pallet_locations`: vị trí hiện tại của từng PA.
 
 Có thể lọc dữ liệu rồi **Export → CSV** để mở bằng Excel.
+
+## Module WMS – tồn kho theo Bin
+
+Tab **WMS** gọi API `exportBinStocks` của WMS Supra, kho PTD. Mỗi lần bấm **⟳ Lấy dữ liệu mới**, app lấy bản mới nhất (khoảng 20 giây) và thay toàn bộ bảng `wms_bin_stocks` trên Supabase.
+
+**Session WMS** không lưu trong app mà nằm ở:
+
+- Google Sheet *Central OPS*, tab **Config**, ô **B2** (ô B1 là của DC Nghệ An). Ô này chứa link Google Drive tới file session xuất bằng extension **Supra Session Capture**.
+- Khi app báo *"Session WMS đã hết hạn"*: vào wms-supra.winmart.vn, xuất lại session bằng extension, rồi dán link Drive mới vào ô B2. App tự đọc lại, không cần deploy.
+
+**Service account** `getdata@central-ops-507204.iam.gserviceaccount.com` cần quyền **Viewer** trên cả Google Sheet và file session trên Drive.
+
+- Trên Railway: tạo biến `GOOGLE_SERVICE_ACCOUNT_JSON`, dán toàn bộ nội dung file JSON của service account.
+- Khi chạy trên máy: dùng `GOOGLE_SERVICE_ACCOUNT_FILE` trỏ tới file JSON.

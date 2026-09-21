@@ -8,6 +8,7 @@ Luật nghiệp vụ:
 import csv
 import io
 import re
+import threading
 from contextlib import asynccontextmanager
 from datetime import datetime, time as dtime
 from pathlib import Path
@@ -18,14 +19,14 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import config, db, security
+from . import config, db, security, wms
 
 STATIC_DIR = Path(__file__).parent / "static"
 
 # Quyền theo loại tài khoản
 ROLES = {
-    "admin": {"label": "Admin", "perms": {"scan", "move", "log", "users"}},
-    "chuyenvien": {"label": "Chuyên viên", "perms": {"scan", "move", "log"}},
+    "admin": {"label": "Admin", "perms": {"scan", "move", "log", "wms", "users"}},
+    "chuyenvien": {"label": "Chuyên viên", "perms": {"scan", "move", "log", "wms"}},
     "nhanvien": {"label": "Nhân viên", "perms": {"scan", "move"}},
 }
 
@@ -314,6 +315,164 @@ def export_logs(f: LogQuery = Depends(), user: dict = Depends(require("log"))):
             r["pa_code"], r["prev_location"] or "", r["location_code"], r["staff_name"], r["username"],
         ])
     name = f"log-dinh-vi-pa-{datetime.now(config.TZ):%Y%m%d-%H%M}.csv"
+    return Response(
+        "\ufeff" + buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+    )
+
+
+# ---------------------------------------------------------------- WMS: tồn kho theo Bin
+
+# Cột trong file Excel WMS → cột trong bảng wms_bin_stocks
+WMS_COLUMNS = [
+    ("DC Site", "site"), ("SKU", "sku"), ("Tên sản phẩm", "product_name"), ("Loại sản phẩm", "product_type"),
+    ("Mã PO", "po_code"), ("POID", "po_id"), ("Ngày nhận hàng", "received_date"),
+    ("Mã VTLT", "vtlt_code"), ("Mã PTLT", "ptlt_code"), ("Loại LT", "lt_type"), ("Tính chất LT", "lt_status"),
+    ("Loại hàng Pallet", "pallet_type"), ("Tồn Bin", "qty"), ("Tồn chờ Xuất", "qty_pending"),
+    ("Base Units", "uom"), ("NSX", "mfg_date"), ("HSD", "exp_date"), ("ZoneCode", "zone_code"),
+]
+WMS_NUMERIC = {"qty", "qty_pending"}
+WMS_OUT_COLS = ", ".join(col for _, col in WMS_COLUMNS)
+_wms_sync_lock = threading.Lock()
+
+
+def _wms_cell(value, col: str):
+    if value is None:
+        return None
+    if col in WMS_NUMERIC:
+        if isinstance(value, (int, float)):
+            return value
+        try:
+            return float(str(value).replace(",", ""))
+        except ValueError:
+            return None
+    if isinstance(value, datetime):
+        return value.strftime("%d/%m/%Y")
+    text = str(value).strip()
+    return text or None
+
+
+def wms_status_data() -> dict:
+    last_ok = db.fetch_one(
+        "select finished_at, row_count, file_name, username from wms_sync_log "
+        "where status = 'OK' order by id desc limit 1"
+    )
+    last = db.fetch_one("select started_at, status, message, username from wms_sync_log order by id desc limit 1")
+    statuses = db.fetch_all(
+        "select coalesce(lt_status, '(trống)') as name, count(*) as n from wms_bin_stocks group by 1 order by 2 desc"
+    )
+    return {
+        "synced_at": fmt_time(last_ok["finished_at"]) if last_ok else None,
+        "row_count": last_ok["row_count"] if last_ok else 0,
+        "file_name": last_ok["file_name"] if last_ok else None,
+        "synced_by": last_ok["username"] if last_ok else None,
+        "last_error": last["message"] if last and last["status"] == "ERROR" else None,
+        "running": _wms_sync_lock.locked(),
+        "statuses": statuses,
+    }
+
+
+@app.get("/api/wms/status")
+def wms_status(_user: dict = Depends(require("wms"))):
+    return wms_status_data()
+
+
+@app.post("/api/wms/sync")
+def wms_sync(user: dict = Depends(require("wms"))):
+    """Gọi API WMS lấy báo cáo tồn kho theo Bin, thay toàn bộ dữ liệu trong wms_bin_stocks."""
+    if not _wms_sync_lock.acquire(blocking=False):
+        raise HTTPException(409, "Đang lấy dữ liệu WMS – đợi khoảng 20 giây rồi bấm Tải lại")
+    try:
+        log_id = db.fetch_one(
+            "insert into wms_sync_log (status, username) values ('RUNNING', %s) returning id", (user["username"],)
+        )["id"]
+        try:
+            content, file_name = wms.export_bin_stocks()
+            header, data = wms.read_xlsx(content)
+            idx = {h: i for i, h in enumerate(header)}
+            missing = [h for h, _ in WMS_COLUMNS if h not in idx]
+            if missing:
+                raise wms.WmsError("File WMS thiếu cột: " + ", ".join(missing))
+            rows = [[_wms_cell(r[idx[h]] if idx[h] < len(r) else None, col) for h, col in WMS_COLUMNS] for r in data]
+            with db.transaction() as conn:
+                conn.execute("delete from wms_bin_stocks")
+                with conn.cursor().copy(f"copy wms_bin_stocks ({WMS_OUT_COLS}) from stdin") as cp:
+                    for row in rows:
+                        cp.write_row(row)
+                conn.execute(
+                    "update wms_sync_log set finished_at = now(), status = 'OK', row_count = %s, file_name = %s where id = %s",
+                    (len(rows), file_name, log_id),
+                )
+        except Exception as exc:
+            msg = str(exc) if isinstance(exc, wms.WmsError) else "Lỗi khi xử lý dữ liệu WMS"
+            db.execute(
+                "update wms_sync_log set finished_at = now(), status = 'ERROR', message = %s where id = %s", (msg, log_id)
+            )
+            if isinstance(exc, wms.WmsError):
+                raise HTTPException(502, msg)
+            raise
+    finally:
+        _wms_sync_lock.release()
+    return wms_status_data()
+
+
+def wms_filter(q: str, status: str) -> tuple[str, list]:
+    where, params = [], []
+    if status:
+        if status == "(trống)":
+            where.append("lt_status is null")
+        else:
+            where.append("lt_status = %s")
+            params.append(status)
+    q = q.strip()
+    if q:
+        like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        where.append("(vtlt_code ilike %s or ptlt_code ilike %s or sku ilike %s or product_name ilike %s or po_code ilike %s)")
+        params += [like] * 5
+    return ("where " + " and ".join(where)) if where else "", params
+
+
+class WmsQuery(BaseModel):
+    q: str = Field("", max_length=100)
+    status: str = Field("", max_length=100)
+
+
+@app.get("/api/wms/stocks")
+def wms_stocks(
+    f: WmsQuery = Depends(),
+    limit: int = Query(300, ge=1, le=1000),
+    _user: dict = Depends(require("wms")),
+):
+    where_sql, params = wms_filter(f.q, f.status)
+    rows = db.fetch_all(
+        f"select {WMS_OUT_COLS} from wms_bin_stocks {where_sql} order by vtlt_code, ptlt_code, sku limit %s",
+        params + [limit],
+    )
+    agg = db.fetch_one(
+        f"select count(*) as n, coalesce(sum(qty), 0) as qty, count(distinct coalesce(ptlt_code, vtlt_code)) as pallets "
+        f"from wms_bin_stocks {where_sql}",
+        params,
+    )
+    for r in rows:
+        for k in WMS_NUMERIC:
+            if r[k] is not None:
+                r[k] = float(r[k])
+    return {"rows": rows, "total": agg["n"], "qty": float(agg["qty"]), "pallets": agg["pallets"]}
+
+
+@app.get("/api/wms/export")
+def wms_export(f: WmsQuery = Depends(), _user: dict = Depends(require("wms"))):
+    where_sql, params = wms_filter(f.q, f.status)
+    rows = db.fetch_all(
+        f"select {WMS_OUT_COLS} from wms_bin_stocks {where_sql} order by vtlt_code, ptlt_code, sku", params
+    )
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow([h for h, _ in WMS_COLUMNS])
+    for r in rows:
+        w.writerow(["" if r[col] is None else r[col] for _, col in WMS_COLUMNS])
+    name = f"ton-bin-wms-{datetime.now(config.TZ):%Y%m%d-%H%M}.csv"
     return Response(
         "\ufeff" + buf.getvalue(),
         media_type="text/csv; charset=utf-8",

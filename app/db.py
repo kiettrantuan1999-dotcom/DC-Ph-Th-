@@ -41,6 +41,11 @@ def fetch_one(sql: str, params=()) -> dict | None:
         return conn.execute(sql, params).fetchone()
 
 
+def execute(sql: str, params=()) -> None:
+    with _pool.connection() as conn:
+        conn.execute(sql, params)
+
+
 def fetch_all(sql: str, params=()) -> list[dict]:
     with _pool.connection() as conn:
         return conn.execute(sql, params).fetchall()
