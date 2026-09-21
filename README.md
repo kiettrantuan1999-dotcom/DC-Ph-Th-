@@ -6,6 +6,7 @@ Web app chạy trên trình duyệt của PDA để định vị pallet nhập h
 - **ĐỊNH VỊ**: nhân viên scan → mã PA → mã vị trí, app tự lưu ngay khi scan xong vị trí.
 - **CHUYỂN**: chuyển PA từ vị trí lưu trữ này sang vị trí khác.
 - **LOG**: xem lịch sử, tìm theo mã PA / vị trí / nhân viên, lọc theo ngày, loại thao tác, hoặc chỉ của mình.
+- **DASHBOARD**: số PA nhập theo ngày nhận hàng (theo dữ liệu WMS), chia theo trạng thái Đã định vị / Chưa định vị / Chờ PickPack, kèm bảng chi tiết theo ngày.
 - **WMS**: lấy báo cáo tồn kho theo Bin từ WMS Supra, xem / tìm / lọc (ví dụ các PA *Chờ lưu trữ*) và xuất Excel.
 - **PHIẾU**: danh sách các PA đã scan định vị trong app nhưng trên WMS vẫn *Chờ lưu trữ*. Mỗi PA có mã QR vị trí và mã QR PA để scan cất hàng trên WMS. In được phiếu A4, sắp theo vị trí A→Z.
 - **USER**: admin tạo / sửa / khóa tài khoản, đặt lại mật khẩu.

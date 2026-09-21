@@ -98,6 +98,8 @@
   .who b { display: block; font-size: 13px; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .who span { font-size: 12px; color: var(--muted); white-space: nowrap; }
   .bottom-nav { display: none; }
+  @media (max-width: 1100px) { .wh-chip { display: none; } }
+  @media (max-width: 960px) { .tb-user .who { display: none; } }
 
   main.tab { padding: 20px 24px 32px; margin: 0 auto; max-width: 600px; }
   main.tab.wide { max-width: none; margin: 0; }
@@ -189,6 +191,33 @@
   .tbl td.empty { text-align: center; color: var(--muted); padding: 36px; white-space: normal; }
   .tbl th.r, .tbl td.r { text-align: right; font-variant-numeric: tabular-nums; }
   .tbl td.wrap { white-space: normal; min-width: 220px; max-width: 380px; }
+
+  /* ---------- DASHBOARD ---------- */
+  .dash-panel { padding: 14px 16px 8px; margin-bottom: 14px; }
+  .dp-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+  .dp-head b { display: block; font-size: 14px; }
+  .dp-head span { font-size: 12.5px; color: var(--muted); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; }
+  .lg-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: #334155; font-weight: 600; }
+  .lg-item i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .dash-chart { position: relative; }
+  .dash-chart svg { display: block; overflow: visible; }
+  .dash-chart .grid { stroke: #edf0f5; stroke-width: 1; }
+  .dash-chart .base { stroke: #cbd3de; stroke-width: 1; }
+  .dash-chart .ax { font-size: 11px; fill: #64748b; font-variant-numeric: tabular-nums; }
+  .dash-chart .ax.strong { fill: #17212f; font-weight: 700; }
+  .dash-chart .hit { fill: transparent; cursor: default; }
+  .dash-chart .hit.on { fill: rgba(29,95,209,.06); }
+  .dash-tip { position: absolute; z-index: 3; width: 210px; background: #fff; border: 1px solid var(--line); border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(15,23,42,.14); padding: 10px 12px; font-size: 12.5px; pointer-events: none; }
+  .dash-tip .tt-total { font-size: 16px; font-weight: 700; margin: 2px 0 6px; }
+  .dash-tip .tt-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; color: #334155; }
+  .dash-tip .tt-row i { width: 9px; height: 9px; border-radius: 2px; }
+  .dash-tip .tt-row span { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .dash-tip .tt-row.muted { color: var(--muted); border-top: 1px solid var(--line-2); margin-top: 4px; padding-top: 5px; }
+  .dash-note { font-weight: 500; font-size: 12px; }
+  .dash-tbl { display: block !important; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); overflow: auto; max-height: none !important; }
 
   /* ---------- nhãn trạng thái ---------- */
   .badge { display: inline-flex; align-items: center; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
@@ -349,6 +378,7 @@
   <symbol id="i-scan" viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 12h10"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.9-3.5M4 4v4h4M4 13a8 8 0 0 0 14.9 3.5M20 20v-4h-4"/></symbol>
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V4M4 20h16"/><path d="M8 16v-5M12 16V8M16 16v-3M20 16V6"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
 </svg>
 
@@ -387,6 +417,7 @@
       <button type="button" class="nav-btn" data-tab="in" data-perm="scan" data-crumb="Vận hành" data-title="Định vị pallet nhập"><svg class="ic"><use href="#i-pin"/></svg>Định vị pallet</button>
       <button type="button" class="nav-btn" data-tab="mv" data-perm="move" data-crumb="Vận hành" data-title="Chuyển vị trí lưu trữ"><svg class="ic"><use href="#i-move"/></svg>Chuyển vị trí</button>
       <div class="sb-group">Báo cáo &amp; WMS</div>
+      <button type="button" class="nav-btn" data-tab="dash" data-perm="wms" data-crumb="Báo cáo" data-title="Dashboard nhập hàng"><svg class="ic"><use href="#i-chart"/></svg>Dashboard nhập hàng</button>
       <button type="button" class="nav-btn" data-tab="log" data-perm="log" data-crumb="Báo cáo" data-title="Nhật ký thao tác"><svg class="ic"><use href="#i-log"/></svg>Nhật ký thao tác</button>
       <button type="button" class="nav-btn" data-tab="wms" data-perm="wms" data-crumb="WMS Supra" data-title="Tồn kho theo Bin"><svg class="ic"><use href="#i-box"/></svg>Tồn kho theo Bin</button>
       <button type="button" class="nav-btn" data-tab="pw" data-perm="putaway" data-crumb="WMS Supra" data-title="Phiếu định vị trên WMS"><svg class="ic"><use href="#i-print"/></svg>Phiếu định vị</button>
@@ -465,6 +496,41 @@
       <div id="mv-result" class="hidden"></div>
       <div class="sec-title"><span>Vừa chuyển trên máy này</span><span id="mv-count"></span></div>
       <div id="mv-recent"><div class="empty">Chưa có lượt nào</div></div>
+    </main>
+
+    <!-- ----- DASHBOARD nhập hàng ----- -->
+    <main id="tab-dash" class="tab wide hidden">
+      <div class="wms-bar">
+        <div class="wms-info">
+          <b>Số lượng PA nhập theo ngày · DC Phú Thọ</b>
+          <span id="dash-meta">Đang tải…</span>
+        </div>
+        <div class="filters">
+          <button type="button" class="chip" data-days="7">7 ngày</button>
+          <button type="button" class="chip" data-days="14">14 ngày</button>
+          <button type="button" class="chip on" data-days="30">30 ngày</button>
+          <button type="button" class="chip" data-days="90">90 ngày</button>
+          <button type="button" class="chip" data-days="0">Tất cả</button>
+        </div>
+        <button type="button" class="btn btn-light" id="dash-reload"><svg class="ic"><use href="#i-refresh"/></svg>Tải lại</button>
+      </div>
+      <div class="kpis" id="dash-kpis"></div>
+      <div class="panel dash-panel">
+        <div class="dp-head">
+          <div><b>PA nhập theo ngày nhận hàng</b><span>Mỗi cột chia theo trạng thái định vị hiện tại trên WMS</span></div>
+          <div class="legend" id="dash-legend"></div>
+        </div>
+        <div class="dash-chart" id="dash-chart"></div>
+      </div>
+      <div class="sec-title"><span>Chi tiết theo ngày</span>
+        <span class="dash-note">Tính trên tồn kho hiện tại của WMS – PA đã xuất hết khỏi kho không còn trong báo cáo</span></div>
+      <div class="tbl-wrap dash-tbl"><table class="tbl" id="dash-table">
+        <thead><tr>
+          <th>Ngày nhận hàng</th><th class="r">Tổng PA</th><th class="r">Đã định vị</th><th class="r">Chưa định vị</th>
+          <th class="r">Chờ PickPack</th><th class="r">% đã định vị</th><th class="r">Đã scan trong app</th><th class="r">Dòng SKU</th><th class="r">Tổng SL</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table></div>
     </main>
 
     <!-- ----- LOG ----- -->
@@ -572,6 +638,7 @@
   <nav class="bottom-nav">
     <button type="button" class="nav-btn" data-tab="in" data-perm="scan"><svg class="ic"><use href="#i-pin"/></svg>Định vị</button>
     <button type="button" class="nav-btn" data-tab="mv" data-perm="move"><svg class="ic"><use href="#i-move"/></svg>Chuyển</button>
+    <button type="button" class="nav-btn" data-tab="dash" data-perm="wms"><svg class="ic"><use href="#i-chart"/></svg>Báo cáo</button>
     <button type="button" class="nav-btn" data-tab="log" data-perm="log"><svg class="ic"><use href="#i-log"/></svg>Log</button>
     <button type="button" class="nav-btn" data-tab="wms" data-perm="wms"><svg class="ic"><use href="#i-box"/></svg>WMS</button>
     <button type="button" class="nav-btn" data-tab="pw" data-perm="putaway"><svg class="ic"><use href="#i-print"/></svg>Phiếu</button>
@@ -721,7 +788,7 @@
     });
     const staff = store.get('pa.staff.' + u.username) || u.full_name;
     Object.values(FORMS).forEach((f) => f.reset(staff));
-    switchTab(document.querySelector('.sb-nav .nav-btn:not(.hidden)').dataset.tab);
+    switchTab(can('wms') ? 'dash' : document.querySelector('.sb-nav .nav-btn:not(.hidden)').dataset.tab);
   }
 
   function logout(msg) {
@@ -741,6 +808,7 @@
     if (FORMS[name]) FORMS[name].focusNext();
     else if (name === 'log') loadLogs();
     else if (name === 'wms') loadWms();
+    else if (name === 'dash') loadDashboard();
     else if (name === 'pw') loadPutaway();
     else if (name === 'users') loadUsers();
   }
@@ -1365,6 +1433,143 @@
   }
   chipGroup('scope', (v) => { logScope = v; });
   chipGroup('action', (v) => { logAction = v; });
+
+  // ---------------------------------------------------------------- DASHBOARD: PA nhập theo ngày (WMS)
+  // Màu theo trạng thái định vị (không dùng cho mục đích khác) – luôn kèm chú thích + tooltip + bảng số liệu
+  const DASH_SERIES = [
+    { key: 'dinh_vi', label: 'Đã định vị', color: '#1f8a4c' },
+    { key: 'pickpack', label: 'Chờ PickPack', color: '#7c4dcc' },
+    { key: 'chua', label: 'Chưa định vị', color: '#e0a100' },
+    { key: 'khac', label: 'Khác', color: '#a3afc0' },
+  ];
+  let dashDays = 30, dashData = null, dashSeq = 0;
+
+  document.querySelectorAll('.chip[data-days]').forEach((c) => c.addEventListener('click', () => {
+    dashDays = Number(c.dataset.days);
+    document.querySelectorAll('.chip[data-days]').forEach((x) => x.classList.toggle('on', x === c));
+    loadDashboard();
+  }));
+  $('dash-reload').addEventListener('click', loadDashboard);
+
+  async function loadDashboard() {
+    const seq = ++dashSeq;
+    $('dash-meta').textContent = 'Đang tải…';
+    try {
+      const r = await api('/api/dashboard?days=' + dashDays);
+      if (seq !== dashSeq) return;
+      dashData = r;
+      renderDashboard();
+    } catch (e) {
+      if (seq !== dashSeq || onAuthFail(e)) return;
+      $('dash-meta').textContent = e.message;
+    }
+  }
+
+  // Điền đủ các ngày trong kỳ (ngày không nhập = 0) để trục thời gian liên tục
+  function dashDaysFilled(r) {
+    const byIso = Object.fromEntries(r.rows.map((x) => [x.iso, x]));
+    const first = r.since || (r.rows[0] && r.rows[0].iso);
+    if (!first) return [];
+    const out = [];
+    for (let d = new Date(first + 'T00:00:00'); d <= new Date(r.today + 'T00:00:00'); d.setDate(d.getDate() + 1)) {
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      out.push(byIso[iso] || { iso, date: `${iso.slice(8)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`, pa: 0, dinh_vi: 0, chua: 0, pickpack: 0, khac: 0, app_scanned: 0, sku_lines: 0, qty: 0 });
+    }
+    return out;
+  }
+
+  function renderDashboard() {
+    const r = dashData;
+    const days = dashDaysFilled(r);
+    const sum = (k) => r.rows.reduce((a, x) => a + (x[k] || 0), 0);
+    const total = sum('pa'), today = r.rows.find((x) => x.iso === r.today);
+    const activeDays = r.rows.filter((x) => x.pa > 0).length;
+    const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0) + '%';
+    $('dash-meta').textContent = (r.wms_synced_at ? `Theo dữ liệu WMS lúc ${r.wms_synced_at}` : 'Chưa có dữ liệu WMS')
+      + ' · tính theo "Ngày nhận hàng", mỗi PA 1 lần';
+    renderKpis($('dash-kpis'), [
+      { label: 'PA nhập hôm nay', value: nf(today ? today.pa : 0), sub: today ? `Chưa định vị ${nf(today.chua)}` : 'Chưa có PA nhập hôm nay' },
+      { label: dashDays ? `PA nhập ${dashDays} ngày` : 'Tổng PA nhập', value: nf(total), sub: `${nf(activeDays)} ngày có nhập · TB ${nf(activeDays ? Math.round(total / activeDays) : 0)} PA/ngày` },
+      { label: 'Đã định vị', value: pct(sum('dinh_vi'), total), cls: 'ok', sub: `${nf(sum('dinh_vi'))} PA có thể lấy hàng` },
+      { label: 'Chưa định vị', value: nf(sum('chua')), cls: 'warn', sub: `${pct(sum('chua'), total)} · chờ lưu trữ` },
+      { label: 'Chờ PickPack', value: nf(sum('pickpack')), cls: 'mv', sub: `${pct(sum('pickpack'), total)} · vị trí đầu hàng` },
+    ]);
+    $('dash-legend').innerHTML = DASH_SERIES.filter((s) => s.key !== 'khac' || sum('khac'))
+      .map((s) => `<span class="lg-item"><i style="background:${s.color}"></i>${esc(s.label)}</span>`).join('');
+    renderDashChart(days);
+    $('dash-table').querySelector('tbody').innerHTML = r.rows.length ? r.rows.slice().reverse().map((x) => `<tr>
+      <td class="code">${esc(x.date)}${x.iso === r.today ? ' <span class="badge in">Hôm nay</span>' : ''}</td>
+      <td class="r"><b>${nf(x.pa)}</b></td>
+      <td class="r">${nf(x.dinh_vi)}</td><td class="r">${nf(x.chua)}</td><td class="r">${nf(x.pickpack)}</td>
+      <td class="r muted">${pct(x.dinh_vi, x.pa)}</td>
+      <td class="r">${nf(x.app_scanned)}</td>
+      <td class="r muted">${nf(x.sku_lines)}</td><td class="r muted">${nf(x.qty)}</td>
+    </tr>`).join('') : '<tr><td colspan="9" class="empty">Không có dữ liệu trong kỳ</td></tr>';
+  }
+
+  function renderDashChart(days) {
+    const box = $('dash-chart');
+    if (!days.length) { box.innerHTML = '<div class="empty">Không có dữ liệu trong kỳ</div>'; return; }
+    const W = Math.max(box.clientWidth || 800, 320), H = 280;
+    const m = { t: 18, r: 12, b: 34, l: 44 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const max = Math.max(...days.map((d) => d.pa), 1);
+    const step = Math.pow(10, Math.floor(Math.log10(max)));
+    const nice = [1, 2, 2.5, 5, 10].map((k) => k * step).find((v) => max / v <= 5) || step * 10;
+    const top = Math.ceil(max / nice) * nice;
+    const y = (v) => m.t + ih - (v / top) * ih;
+    const slot = iw / days.length, bw = Math.max(3, Math.min(34, slot * 0.64));
+    const labelEvery = Math.ceil(days.length / Math.max(1, Math.floor(iw / 46)));
+    let g = '';
+    for (let v = 0; v <= top; v += nice) {
+      g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" class="${v ? 'grid' : 'base'}"/>`
+        + `<text x="${m.l - 8}" y="${y(v) + 4}" class="ax" text-anchor="end">${nf(v)}</text>`;
+    }
+    let bars = '';
+    days.forEach((d, i) => {
+      const x = m.l + slot * i + (slot - bw) / 2;
+      let acc = 0;
+      const segs = DASH_SERIES.filter((s) => d[s.key] > 0);
+      segs.forEach((s, j) => {
+        const y0 = y(acc), y1 = y(acc + d[s.key]);
+        acc += d[s.key];
+        const h = Math.max(0, y0 - y1 - (j > 0 ? 2 : 0));   // khe 2px giữa các đoạn
+        const yy = y0 - (j > 0 ? 2 : 0) - h;
+        const isTop = j === segs.length - 1, rr = Math.min(4, bw / 2, h);
+        bars += isTop && rr > 0
+          ? `<path d="M${x},${yy + h}V${yy + rr}Q${x},${yy} ${x + rr},${yy}H${x + bw - rr}Q${x + bw},${yy} ${x + bw},${yy + rr}V${yy + h}Z" fill="${s.color}"/>`
+          : `<rect x="${x}" y="${yy}" width="${bw}" height="${h}" fill="${s.color}"/>`;
+      });
+      if ((days.length - 1 - i) % labelEvery === 0) {   // chia nhãn từ ngày cuối để không chồng chữ
+        bars += `<text x="${x + bw / 2}" y="${H - m.b + 16}" class="ax" text-anchor="middle">${d.date.slice(0, 5)}</text>`;
+      }
+      if (d.pa === max && max > 0) {
+        bars += `<text x="${x + bw / 2}" y="${y(d.pa) - 6}" class="ax strong" text-anchor="middle">${nf(d.pa)}</text>`;
+      }
+      bars += `<rect x="${m.l + slot * i}" y="${m.t}" width="${slot}" height="${ih}" class="hit" data-i="${i}"/>`;
+    });
+    box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="Số PA nhập theo ngày">${g}${bars}</svg>
+      <div class="dash-tip hidden" id="dash-tip"></div>`;
+    const tip = $('dash-tip');
+    box.querySelectorAll('.hit').forEach((el) => {
+      el.addEventListener('mouseenter', () => {
+        const d = days[Number(el.dataset.i)];
+        el.classList.add('on');
+        tip.innerHTML = `<b>${esc(d.date)}</b><div class="tt-total">${nf(d.pa)} PA nhập</div>`
+          + DASH_SERIES.filter((s) => d[s.key]).map((s) => `<div class="tt-row"><i style="background:${s.color}"></i>${esc(s.label)}<span>${nf(d[s.key])}</span></div>`).join('')
+          + (d.pa ? `<div class="tt-row muted">Đã scan trong app<span>${nf(d.app_scanned)}</span></div>` : '');
+        tip.classList.remove('hidden');
+        const bx = el.getBBox ? el.getBBox() : { x: 0, width: 0 };
+        const scale = box.clientWidth / W;
+        let left = (bx.x + bx.width / 2) * scale + 12;
+        if (left + 200 > box.clientWidth) left -= 224;
+        tip.style.left = left + 'px';
+        tip.style.top = '24px';
+      });
+      el.addEventListener('mouseleave', () => { el.classList.remove('on'); tip.classList.add('hidden'); });
+    });
+  }
+  window.addEventListener('resize', () => { if (currentTab === 'dash' && dashData) renderDashChart(dashDaysFilled(dashData)); });
 
   // ---------------------------------------------------------------- PHIẾU: định vị thực tế trên WMS
   const QR_GEN = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js';

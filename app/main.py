@@ -366,6 +366,48 @@ def export_logs(f: LogQuery = Depends(), user: dict = Depends(require("log"))):
     )
 
 
+# ---------------------------------------------------------------- DASHBOARD: PA nhập theo ngày (dữ liệu WMS)
+
+# Mỗi PA tính 1 lần theo "Ngày nhận hàng" trên WMS; trạng thái theo "Tính chất LT".
+DASHBOARD_SQL = r"""
+with pa as (
+    select coalesce(ptlt_code, vtlt_code) as pa,
+           min(to_date(received_date, 'DD/MM/YYYY')) as d,
+           min(lt_status) as st, count(*) as sku_lines, coalesce(sum(qty), 0) as qty
+    from wms_bin_stocks
+    where received_date ~ '^\d{2}/\d{2}/\d{4}$' and coalesce(ptlt_code, vtlt_code) is not null
+    group by 1
+)
+select d,
+       count(*) as pa,
+       count(*) filter (where st = 'Có thể lấy hàng') as dinh_vi,
+       count(*) filter (where st = 'Chờ lưu trữ') as chua,
+       count(*) filter (where st = 'Vị trí đầu hàng') as pickpack,
+       count(*) filter (where st is null or st not in ('Có thể lấy hàng', 'Chờ lưu trữ', 'Vị trí đầu hàng')) as khac,
+       count(*) filter (where exists (select 1 from pallet_locations l where l.pa_code = pa.pa)) as app_scanned,
+       sum(sku_lines) as sku_lines, sum(qty) as qty
+from pa
+where %s::date is null or d >= %s::date
+group by d
+order by d
+"""
+
+
+@app.get("/api/dashboard")
+def dashboard(days: int = Query(30, ge=0, le=3650), _user: dict = Depends(require("wms"))):
+    """Số PA nhập theo ngày nhận hàng (tính trên tồn kho hiện tại của WMS). days=0 → tất cả."""
+    today = datetime.now(config.TZ).date()
+    since = today.fromordinal(today.toordinal() - days + 1) if days else None
+    rows = db.fetch_all(DASHBOARD_SQL, (since, since))
+    out = [{
+        "date": r["d"].strftime("%d/%m/%Y"), "iso": r["d"].isoformat(),
+        "pa": r["pa"], "dinh_vi": r["dinh_vi"], "chua": r["chua"], "pickpack": r["pickpack"], "khac": r["khac"],
+        "app_scanned": r["app_scanned"], "sku_lines": r["sku_lines"], "qty": float(r["qty"]),
+    } for r in rows]
+    return {"rows": out, "today": today.isoformat(), "since": since.isoformat() if since else None,
+            "wms_synced_at": last_wms_sync()}
+
+
 # ---------------------------------------------------------------- PHIẾU: định vị thực tế trên WMS
 
 WMS_WAITING = "Chờ lưu trữ"
