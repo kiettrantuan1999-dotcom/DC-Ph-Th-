@@ -94,3 +94,15 @@ alter table pallet_scans enable row level security;
 alter table pallet_locations enable row level security;
 alter table wms_bin_stocks enable row level security;
 alter table wms_sync_log   enable row level security;
+
+-- Máy đồng bộ WMS (WMS chặn server nước ngoài → đồng bộ qua máy ở Việt Nam)
+-- Nhịp tim của máy đồng bộ (1 dòng / máy)
+create table if not exists wms_agent (
+  host         text primary key,
+  last_seen    timestamptz not null default now(),
+  auto_minutes integer,
+  version      text
+);
+alter table wms_agent enable row level security;
+
+create index if not exists wms_sync_log_status_idx on wms_sync_log (status, id);

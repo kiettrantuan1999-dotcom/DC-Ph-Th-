@@ -146,14 +146,37 @@ Có thể lọc dữ liệu rồi **Export → CSV** để mở bằng Excel.
 
 ## Module WMS – tồn kho theo Bin
 
-Tab **WMS** gọi API `exportBinStocks` của WMS Supra, kho PTD. Mỗi lần bấm **⟳ Lấy dữ liệu mới**, app lấy bản mới nhất (khoảng 20 giây) và thay toàn bộ bảng `wms_bin_stocks` trên Supabase.
+Tab **WMS** hiển thị báo cáo tồn kho theo Bin (`exportBinStocks`, kho PTD). Dữ liệu được lưu trong bảng `wms_bin_stocks` trên Supabase. Mỗi lần đồng bộ, bảng được thay bằng bản mới nhất.
 
-**Session WMS** không lưu trong app mà nằm ở:
+### Máy đồng bộ
 
-- Google Sheet *Central OPS*, tab **Config**, ô **B2** (ô B1 là của DC Nghệ An). Ô này chứa link Google Drive tới file session xuất bằng extension **Supra Session Capture**.
-- Khi app báo *"Session WMS đã hết hạn"*: vào wms-supra.winmart.vn, xuất lại session bằng extension, rồi dán link Drive mới vào ô B2. App tự đọc lại, không cần deploy.
+WMS **chặn server nước ngoài**, nên app trên Railway không gọi WMS trực tiếp được. Việc lấy dữ liệu do một **máy tính Windows ở Việt Nam** đảm nhận, chạy `wms_agent.py`:
 
-**Service account** `getdata@central-ops-507204.iam.gserviceaccount.com` cần quyền **Viewer** trên cả Google Sheet và file session trên Drive.
+- Máy đồng bộ báo trạng thái lên Supabase vài giây một lần. Tab WMS hiện 🟢 khi máy đang chạy, 🔴 khi máy đã tắt.
+- Khi ai đó bấm **⟳ Lấy dữ liệu mới** trên app, app tạo một yêu cầu. Máy đồng bộ nhận yêu cầu trong vòng 5 giây, lấy dữ liệu mất khoảng 20 giây, và app tự cập nhật khi xong.
+- Máy đồng bộ tự lấy dữ liệu định kỳ, mặc định 30 phút một lần. Có thể đổi bằng biến `WMS_AUTO_MINUTES` trong `.env`, đặt `0` để tắt.
 
-- Trên Railway: tạo biến `GOOGLE_SERVICE_ACCOUNT_JSON`, dán toàn bộ nội dung file JSON của service account.
-- Khi chạy trên máy: dùng `GOOGLE_SERVICE_ACCOUNT_FILE` trỏ tới file JSON.
+**Cài máy đồng bộ:**
+
+1. Máy cần có Python 3.12 trở lên và thư mục project này (đã có sẵn nếu dùng OneDrive).
+2. Tạo file `.env` với các biến sau:
+   - `DATABASE_URL`, `SECRET_KEY`: giống app.
+   - `GOOGLE_SERVICE_ACCOUNT_FILE`: đường dẫn tới file JSON của service account.
+3. Chạy `run_wms_agent.bat`. Lần đầu, file này tự tạo môi trường Python và cài thư viện. Máy đồng bộ tự khởi động lại nếu bị lỗi hoặc mất mạng.
+4. Để máy đồng bộ tự chạy khi bật máy: nhấn `Win+R`, gõ `shell:startup`, rồi tạo shortcut tới `run_wms_agent.bat` trong thư mục vừa mở.
+
+Log của máy đồng bộ nằm trong file `wms_agent.log`.
+
+### Session WMS
+
+Session không lưu trong app. Link tới session nằm trong Google Sheet *Central OPS*, tab **Config**, ô **B2** (ô B1 là của DC Nghệ An). Ô này chứa link Google Drive tới file session xuất bằng extension **Supra Session Capture**.
+
+- Khi tab WMS báo *"Session WMS đã hết hạn"*: vào wms-supra.winmart.vn, xuất lại session bằng extension, rồi dán link Drive mới vào ô B2.
+- Service account `getdata@central-ops-507204.iam.gserviceaccount.com` cần quyền **Viewer** trên cả Google Sheet và file session.
+
+### Chế độ
+
+Biến `WMS_SYNC_MODE` quyết định ai gọi WMS:
+
+- `agent`: app chỉ tạo yêu cầu, máy đồng bộ thực hiện. Trên Railway, app tự chọn chế độ này.
+- `direct`: server gọi WMS ngay. Dùng khi chạy app trên máy ở Việt Nam.

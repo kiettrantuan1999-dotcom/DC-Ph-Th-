@@ -938,10 +938,20 @@
   const isWaiting = (st) => /chờ lưu/i.test(st || '');
 
   function renderWmsStatus(st) {
-    $('wms-meta').textContent = st.synced_at
-      ? `Cập nhật lúc ${st.synced_at} · ${st.row_count.toLocaleString('vi-VN')} dòng${st.synced_by ? ' · bởi @' + st.synced_by : ''}`
+    const by = st.synced_by ? (st.synced_by.startsWith('auto:') ? ' · tự động' : ' · bởi @' + st.synced_by) : '';
+    let meta = st.synced_at
+      ? `Cập nhật lúc ${st.synced_at} · ${st.row_count.toLocaleString('vi-VN')} dòng${by}`
       : 'Chưa lấy dữ liệu lần nào – bấm "Lấy dữ liệu mới"';
-    $('wms-err').textContent = st.last_error ? 'Lần lấy gần nhất bị lỗi: ' + st.last_error : '';
+    if (st.mode === 'agent') {
+      const a = st.agent;
+      meta += a
+        ? (a.online ? ` · Máy đồng bộ ${a.host}: 🟢 đang chạy${a.auto_minutes ? ` (tự lấy mỗi ${a.auto_minutes} phút)` : ''}`
+                    : ` · Máy đồng bộ ${a.host}: 🔴 đang tắt (lần cuối ${a.last_seen})`)
+        : ' · 🔴 Chưa có máy đồng bộ nào chạy';
+    }
+    $('wms-meta').textContent = meta;
+    $('wms-err').textContent = st.last_error && !st.running ? 'Lần lấy gần nhất bị lỗi: ' + st.last_error : '';
+    setWmsBusy(st.running, st.pending);
     const total = st.statuses.reduce((a, x) => a + x.n, 0);
     const chips = [{ name: '', label: 'Tất cả', n: total }, ...st.statuses.map((x) => ({ name: x.name, label: x.name, n: x.n }))];
     $('wms-statuses').innerHTML = chips.map((c) =>
@@ -1016,19 +1026,47 @@
 
   $('wms-form').addEventListener('submit', (ev) => { ev.preventDefault(); $('wms-q').blur(); loadWmsStocks(); });
   $('wms-export').addEventListener('click', () => downloadCsv($('wms-export'), '/api/wms/export?' + wmsParams(), 'ton-bin-wms.csv'));
+  function setWmsBusy(running, pending) {
+    const btn = $('wms-sync');
+    btn.disabled = !!running;
+    btn.textContent = !running ? '⟳ Lấy dữ liệu mới'
+      : pending ? 'Đang chờ máy đồng bộ…' : 'Đang lấy dữ liệu… (~20 giây)';
+    if (running) watchWmsSync();
+  }
+
+  // Đang có yêu cầu đồng bộ → hỏi trạng thái mỗi 3 giây, xong thì tải lại bảng
+  let wmsWatch = null;
+  function watchWmsSync() {
+    if (wmsWatch) return;
+    const startedAt = Date.now();
+    wmsWatch = setInterval(async () => {
+      if (currentTab !== 'wms' || Date.now() - startedAt > 11 * 60 * 1000) { clearInterval(wmsWatch); wmsWatch = null; return; }
+      try {
+        const st = await api('/api/wms/status');
+        if (!st.running) {
+          clearInterval(wmsWatch); wmsWatch = null;
+          renderWmsStatus(st);
+          if (st.last_error) beep(false); else { beep(true); loadWmsStocks(); }
+        }
+      } catch (e) {
+        if (onAuthFail(e)) { clearInterval(wmsWatch); wmsWatch = null; }
+      }
+    }, 3000);
+  }
+
   $('wms-sync').addEventListener('click', async () => {
     const btn = $('wms-sync');
-    btn.disabled = true; btn.textContent = 'Đang lấy dữ liệu… (~20 giây)';
+    btn.disabled = true; btn.textContent = 'Đang gửi yêu cầu…';
     $('wms-err').textContent = '';
     try {
-      renderWmsStatus(await api('/api/wms/sync', { method: 'POST', timeout: 180000 }));
-      loadWmsStocks();
+      const st = await api('/api/wms/sync', { method: 'POST', timeout: 180000 });
+      renderWmsStatus(st);
+      if (!st.running) loadWmsStocks();   // chế độ direct: đã xong ngay
     } catch (e) {
       if (onAuthFail(e)) return;
       $('wms-err').textContent = e.message;
       beep(false);
-    } finally {
-      btn.disabled = false; btn.textContent = '⟳ Lấy dữ liệu mới';
+      setWmsBusy(false);
     }
   });
 

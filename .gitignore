@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 *.csv
 .claude/
+wms_agent.log*
