@@ -48,7 +48,7 @@
   .hdr .who { flex: 1; min-width: 0; }
   .hdr .who b { display: block; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .hdr .who span { font-size: 13px; opacity: .85; }
-  .hdr button { background: rgba(255,255,255,.18); color: #fff; border: 0; border-radius: 8px; height: 38px; padding: 0 12px; font-weight: 600; }
+  .hdr button { background: rgba(255,255,255,.18); color: #fff; border: 0; border-radius: 8px; height: 38px; padding: 0 10px; font-weight: 600; white-space: nowrap; cursor: pointer; }
   .tabs { display: flex; }
   .tabs button { flex: 1; height: 46px; background: transparent; border: 0; color: rgba(255,255,255,.75);
     font-weight: 700; font-size: 15px; border-bottom: 4px solid transparent; padding: 0 4px; }
@@ -141,6 +141,37 @@
   .toggle button.on.act { background: var(--ok); border-color: var(--ok); color: #fff; }
   .toggle button.on.lock { background: var(--err); border-color: var(--err); color: #fff; }
 
+  /* ---------- camera ---------- */
+  .cam-bg { position: fixed; inset: 0; z-index: 30; background: #000; color: #fff; display: flex; flex-direction: column; }
+  .cam-top { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; font-size: 18px; }
+  .cam-top button { width: 44px; height: 44px; border-radius: 22px; border: 0; background: rgba(255,255,255,.2); color: #fff; font-size: 20px; cursor: pointer; }
+  #cam-view { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  #cam-view video { width: 100% !important; height: auto !important; max-height: 100%; object-fit: cover; }
+  .cam-msg { text-align: center; padding: 12px 16px; font-size: 15px; min-height: 48px; }
+  .cam-msg.err { color: #ffb4ab; font-weight: 600; }
+  .cam-actions { display: flex; justify-content: center; padding: 0 16px 24px; }
+  .cam-actions button { height: 48px; padding: 0 22px; border-radius: 24px; border: 0; background: #fff; color: #000; font-weight: 700; cursor: pointer; }
+
+  /* ---------- log: thẻ trên PDA, bảng trên laptop ---------- */
+  .log-tools { display: flex; gap: 14px; }
+  .tbl-wrap { display: none; }
+  @media (min-width: 900px) {
+    main.wide { max-width: 1280px; }
+    #tab-log #log-list { display: none; }
+    #tab-log .tbl-wrap { display: block; background: var(--card); border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow: auto; max-height: calc(100vh - 260px); }
+    .search { max-width: 640px; }
+  }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .tbl th { position: sticky; top: 0; background: #f5f7fa; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .3px;
+    color: var(--muted); padding: 10px 12px; border-bottom: 2px solid var(--line); white-space: nowrap; }
+  .tbl td { padding: 8px 12px; border-bottom: 1px solid #edf0f4; white-space: nowrap; }
+  .tbl tbody tr:hover { background: #f7f9fc; }
+  .tbl td.code { font-weight: 700; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+  .tbl td.loc { color: var(--pri); }
+  .tbl td.num { color: var(--muted); text-align: right; }
+  .tbl td.muted { color: var(--muted); }
+  .tbl td.empty { text-align: center; color: var(--muted); padding: 28px; }
+
   #boot { min-height: 100vh; display: grid; place-items: center; color: var(--muted); }
 </style>
 </head>
@@ -169,6 +200,7 @@
   <header>
     <div class="hdr">
       <div class="who"><b id="hdr-name"></b><span id="hdr-user"></span></div>
+      <button type="button" id="btn-device" title="Đổi chế độ quét">📟 PDA</button>
       <button type="button" id="btn-logout">Đăng xuất</button>
     </div>
     <nav class="tabs">
@@ -192,11 +224,11 @@
           <label for="in-pa"><span class="step">2</span>Mã PA</label>
           <button type="button" class="link-btn kbd-toggle">⌨ Gõ tay</button>
         </div>
-        <input class="inp scan" id="in-pa" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan mã PA">
+        <input class="inp scan" id="in-pa" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan mã PA" data-ph-pda="Scan mã PA" data-ph-cam="📷 Chạm để quét mã PA">
       </div>
       <div class="field">
         <div class="lbl-row"><label for="in-loc"><span class="step">3</span>Mã vị trí lưu trữ</label></div>
-        <input class="inp scan" id="in-loc" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan mã vị trí">
+        <input class="inp scan" id="in-loc" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan mã vị trí" data-ph-pda="Scan mã vị trí" data-ph-cam="📷 Chạm để quét vị trí">
       </div>
       <div class="actions">
         <button type="button" class="btn btn-light" id="in-clear">Xóa</button>
@@ -221,12 +253,12 @@
           <label for="mv-pa"><span class="step">2</span>Mã PA cần chuyển</label>
           <button type="button" class="link-btn kbd-toggle">⌨ Gõ tay</button>
         </div>
-        <input class="inp scan" id="mv-pa" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan mã PA">
+        <input class="inp scan" id="mv-pa" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan mã PA" data-ph-pda="Scan mã PA" data-ph-cam="📷 Chạm để quét mã PA">
       </div>
       <div class="cur-loc hidden" id="mv-cur"></div>
       <div class="field">
         <div class="lbl-row"><label for="mv-loc"><span class="step">3</span>Vị trí MỚI</label></div>
-        <input class="inp scan" id="mv-loc" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan vị trí mới">
+        <input class="inp scan" id="mv-loc" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan vị trí mới" data-ph-pda="Scan vị trí mới" data-ph-cam="📷 Chạm để quét vị trí mới">
       </div>
       <div class="actions">
         <button type="button" class="btn btn-light" id="mv-clear">Xóa</button>
@@ -239,7 +271,7 @@
   </main>
 
   <!-- ----- LOG ----- -->
-  <main id="tab-log" class="tab hidden">
+  <main id="tab-log" class="tab wide hidden">
     <form class="search" id="log-form">
       <input class="inp" id="log-q" placeholder="Tìm mã PA / vị trí / nhân viên" autocomplete="off" autocapitalize="characters" spellcheck="false">
       <button class="btn" type="submit">Tìm</button>
@@ -254,8 +286,20 @@
       <button type="button" class="chip" data-action="NHAP">Định vị</button>
       <button type="button" class="chip" data-action="CHUYEN">Chuyển</button>
     </div>
-    <div class="sec-title"><span id="log-summary">&nbsp;</span><button type="button" class="link-btn" id="log-reload">↻ Tải lại</button></div>
+    <div class="sec-title">
+      <span id="log-summary">&nbsp;</span>
+      <span class="log-tools">
+        <button type="button" class="link-btn" id="log-export">⬇ Xuất Excel</button>
+        <button type="button" class="link-btn" id="log-reload">↻ Tải lại</button>
+      </span>
+    </div>
     <div id="log-list"></div>
+    <div class="tbl-wrap"><table class="tbl" id="log-table">
+      <thead><tr>
+        <th>#</th><th>Thời gian</th><th>Thao tác</th><th>Mã PA</th><th>Vị trí cũ</th><th>Vị trí</th><th>Nhân viên scan</th><th>Tài khoản</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table></div>
   </main>
 
   <!-- ----- USER (admin) ----- -->
@@ -293,6 +337,19 @@
       <button type="submit" class="btn btn-save" id="uf-save">Lưu</button>
     </div>
   </form>
+</div>
+
+<!-- ----- Camera quét mã (chế độ điện thoại) ----- -->
+<div class="cam-bg hidden" id="cam">
+  <div class="cam-top">
+    <b id="cam-title">Quét mã</b>
+    <button type="button" id="cam-close" aria-label="Đóng">✕</button>
+  </div>
+  <div id="cam-view"></div>
+  <div class="cam-msg" id="cam-msg"></div>
+  <div class="cam-actions">
+    <button type="button" id="cam-type">⌨ Gõ tay</button>
+  </div>
 </div>
 
 <script>
@@ -562,19 +619,44 @@
         if (el !== F.staff) el.value = el.value.toUpperCase();
         if (el === F.pa && checkedPa !== null) { checkedPa = null; setCur('', ''); }
       });
-      el.addEventListener('keydown', async (ev) => {
+      el.addEventListener('keydown', (ev) => {
         const isEnter = ev.key === 'Enter' || ev.keyCode === 13;
         const isTab = ev.key === 'Tab' || ev.keyCode === 9;
         if (!isEnter && !isTab) return;
         ev.preventDefault();
-        if (!el.value.trim()) { beep(false); return; }
-        if (el === F.staff) saveStaff();
-        if (el === F.pa && !(await checkPa())) return;
-        if (ORDER.every((k) => F[k].value.trim())) doSubmit();
-        else focusNext();
+        advance(el);
       });
     });
     F.staff.addEventListener('change', saveStaff);
+
+    // Xong 1 ô (Enter từ đầu scan / đọc được bằng camera) → sang ô kế tiếp hoặc lưu
+    async function advance(el) {
+      if (!el.value.trim()) { beep(false); return; }
+      if (el === F.staff) saveStaff();
+      if (el === F.pa && !(await checkPa())) return;
+      if (ORDER.every((k) => F[k].value.trim())) return doSubmit();
+      focusNext();
+      const next = document.activeElement;
+      if (cameraMode() && (next === F.pa || next === F.loc)) openCameraFor(next);
+    }
+
+    // Chế độ camera: chạm vào ô mã → mở camera thay vì bàn phím
+    function openCameraFor(el) {
+      const label = el.closest('.field').querySelector('label').textContent.replace(/^\d+/, '').trim();
+      openCamera(label, (text) => {
+        el.value = norm(text);
+        el.dispatchEvent(new Event('input'));
+        beep(true);
+        advance(el);
+      }, () => focusField(el));
+    }
+    [F.pa, F.loc].forEach((el) => el.addEventListener('click', (ev) => {
+      if (!cameraMode()) return;
+      ev.preventDefault();
+      el.blur();
+      markSteps(keyOf(el));
+      openCameraFor(el);
+    }));
 
     const tab = F.pa.closest('main');
     tab.addEventListener('click', (ev) => {
@@ -626,32 +708,185 @@
 
   function setKbd(on) {
     manualKbd = on;
-    document.querySelectorAll('input.scan').forEach((el) => el.setAttribute('inputmode', on ? 'text' : 'none'));
-    document.querySelectorAll('.kbd-toggle').forEach((b) => { b.textContent = on ? '▦ Chế độ scan' : '⌨ Gõ tay'; });
+    document.querySelectorAll('input.scan').forEach((el) => {
+      el.setAttribute('inputmode', on ? 'text' : 'none');
+      el.placeholder = on ? 'Gõ mã rồi bấm Enter' : el.dataset[device === 'camera' ? 'phCam' : 'phPda'];
+    });
+    const back = device === 'camera' ? '📷 Dùng camera' : '▦ Chế độ scan';
+    document.querySelectorAll('.kbd-toggle').forEach((b) => { b.textContent = on ? back : '⌨ Gõ tay'; });
     const el = document.activeElement;
-    if (el && el.classList.contains('scan')) { el.blur(); setTimeout(() => el.focus(), 30); }
+    if (on && el && el.classList.contains('scan')) { el.blur(); setTimeout(() => el.focus(), 30); }
   }
   document.querySelectorAll('.kbd-toggle').forEach((b) => b.addEventListener('click', () => setKbd(!manualKbd)));
+
+  // ---------------------------------------------------------------- thiết bị: PDA (đầu scan) / điện thoại (camera)
+  const PDA_BRANDS = /zebra|symbol|honeywell|urovo|chainway|idata|newland|seuic|datalogic|cipherlab|unitech|point ?mobile|sunmi|bluebird|m3 ?mobile/i;
+  const PDA_MODELS = /\b(TC[0-9]{2}|MC[0-9]{2}|EC[35]0|ET[0-9]{2}|CT[0-9]{2}|CK[0-9]{2}|EDA[0-9]{2}|ScanPal|DT[0-9]{2}|RT40|i6310|C6[016]|C7[12]|MT9[0-9]|NLS-\w+|PM[0-9]{2}|RS[0-9]{2}|EF[0-9]{3}|L2[sK]?)\b/i;
+  const isPdaName = (s) => PDA_BRANDS.test(s) || PDA_MODELS.test(s);
+  let device = store.get('pa.device');
+
+  async function detectDevice() {
+    const ua = navigator.userAgent;
+    if (isPdaName(ua)) return 'pda';
+    try {  // Chrome Android mới ẩn tên model trong UA → hỏi qua Client Hints
+      const hints = navigator.userAgentData && await navigator.userAgentData.getHighEntropyValues(['model']);
+      if (hints && hints.model && isPdaName(hints.model)) return 'pda';
+    } catch (e) {}
+    const mobile = /Android|iPhone|iPad|iPod/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
+    return mobile ? 'camera' : 'pda';
+  }
+
+  const cameraMode = () => device === 'camera' && !manualKbd;
+
+  function applyDevice() {
+    $('btn-device').textContent = device === 'camera' ? '📷 Camera' : '📟 PDA';
+    setKbd(false);
+  }
+  $('btn-device').addEventListener('click', () => {
+    device = device === 'camera' ? 'pda' : 'camera';
+    store.set('pa.device', device);
+    applyDevice();
+    alert(device === 'camera'
+      ? 'Chế độ ĐIỆN THOẠI: chạm vào ô mã PA / vị trí để mở camera quét mã.'
+      : 'Chế độ PDA: dùng nút scan trên máy, mã tự điền vào ô đang chọn.');
+  });
+
+  // ---------------------------------------------------------------- camera quét mã (html5-qrcode, tải khi cần)
+  const QR_LIB = 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';
+  let qrLib = null;
+  const cam = { inst: null, onCancel: null };
+
+  function loadQrLib() {
+    qrLib = qrLib || new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = QR_LIB;
+      s.onload = () => resolve(window.Html5Qrcode);
+      s.onerror = () => { qrLib = null; reject(new Error('Không tải được bộ quét camera – kiểm tra mạng')); };
+      document.head.appendChild(s);
+    });
+    return qrLib;
+  }
+
+  async function openCamera(label, onResult, onCancel) {
+    await closeCamera(false);
+    cam.onCancel = onCancel;
+    $('cam-title').textContent = 'Quét ' + label;
+    $('cam-msg').textContent = 'Đang mở camera…';
+    $('cam-msg').className = 'cam-msg';
+    $('cam').classList.remove('hidden');
+    let last = '', done = false;
+    try {
+      const Html5Qrcode = await loadQrLib();
+      if ($('cam').classList.contains('hidden')) return;          // đã bấm đóng trong lúc tải
+      const inst = new Html5Qrcode('cam-view', { verbose: false, experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
+      await inst.start(
+        { facingMode: 'environment' },
+        { fps: 12, qrbox: (w, h) => ({ width: Math.max(60, Math.floor(w * 0.85)), height: Math.max(60, Math.floor(Math.min(w, h) * 0.45)) }) },
+        (text) => {
+          // đọc trùng 2 lần liên tiếp mới nhận → tránh đọc sai mã vạch 1D
+          if (done) return;
+          if (text !== last) { last = text; return; }
+          done = true;
+          closeCamera(false).then(() => onResult(text));
+        },
+        () => {},
+      );
+      if ($('cam').classList.contains('hidden') || done) {   // đã đóng trong lúc camera đang khởi động
+        try { await inst.stop(); inst.clear(); } catch (e) {}
+        return;
+      }
+      cam.inst = inst;
+      $('cam-msg').textContent = 'Đưa mã vạch / QR vào giữa khung';
+    } catch (e) {
+      const denied = /permission|notallowed/i.test(String(e && (e.name || e.message || e)));
+      $('cam-msg').textContent = denied
+        ? 'Chưa cho phép dùng camera. Bấm biểu tượng ổ khóa trên thanh địa chỉ → cho phép Camera.'
+        : (e && e.message) || 'Không mở được camera';
+      $('cam-msg').className = 'cam-msg err';
+    }
+  }
+
+  async function closeCamera(cancelled) {
+    const inst = cam.inst;
+    cam.inst = null;
+    if (inst) {
+      try { await inst.stop(); } catch (e) {}
+      try { inst.clear(); } catch (e) {}
+    }
+    $('cam').classList.add('hidden');
+    const cb = cam.onCancel;
+    cam.onCancel = null;
+    if (cancelled && cb) cb();
+  }
+
+  $('cam-close').addEventListener('click', () => closeCamera(true));
+  $('cam-type').addEventListener('click', async () => {
+    const cb = cam.onCancel;
+    cam.onCancel = null;
+    await closeCamera(false);
+    setKbd(true);
+    if (cb) cb();
+  });
 
   // ---------------------------------------------------------------- log
   let logScope = 'today', logAction = '', logSeq = 0;
 
+  const logParams = () => new URLSearchParams({ q: $('log-q').value.trim(), scope: logScope, action: logAction, mine: $('log-mine').checked });
+  const logBody = () => $('log-table').querySelector('tbody');
+
+  function tableRowHtml(r, i) {
+    const isMove = r.action === 'CHUYEN';
+    return `<tr>
+      <td class="num">${i + 1}</td>
+      <td class="muted">${esc(r.time)}</td>
+      <td>${isMove ? '<span class="badge mv">CHUYỂN</span>' : '<span class="badge in">ĐỊNH VỊ</span>'}</td>
+      <td class="code">${esc(r.pa)}</td>
+      <td class="code muted">${esc(r.prev_loc)}</td>
+      <td class="code loc">${esc(r.loc)}</td>
+      <td>${esc(r.staff)}</td>
+      <td class="muted">@${esc(r.user)}</td>
+    </tr>`;
+  }
+
   async function loadLogs() {
     const seq = ++logSeq;
-    const params = new URLSearchParams({ q: $('log-q').value.trim(), scope: logScope, action: logAction, mine: $('log-mine').checked });
     $('log-summary').textContent = 'Đang tải…';
     try {
-      const r = await api('/api/logs?' + params);
+      const r = await api('/api/logs?' + logParams());
       if (seq !== logSeq) return;
       const shown = r.rows.length;
-      $('log-summary').textContent = r.total > shown ? `${r.total} dòng (hiện ${shown} mới nhất)` : `${r.total} dòng`;
+      $('log-summary').textContent = r.total > shown ? `${r.total} dòng (hiện ${shown} mới nhất – xuất Excel để lấy đủ)` : `${r.total} dòng`;
       $('log-list').innerHTML = shown ? r.rows.map((x) => rowHtml(x, true)).join('') : '<div class="empty">Không có dữ liệu</div>';
+      logBody().innerHTML = shown ? r.rows.map(tableRowHtml).join('') : '<tr><td colspan="8" class="empty">Không có dữ liệu</td></tr>';
     } catch (e) {
       if (seq !== logSeq || onAuthFail(e)) return;
       $('log-summary').textContent = ' ';
       $('log-list').innerHTML = `<div class="empty err">${esc(e.message)}</div>`;
+      logBody().innerHTML = `<tr><td colspan="8" class="empty err">${esc(e.message)}</td></tr>`;
     }
   }
+
+  // Xuất CSV (mở được bằng Excel) theo đúng bộ lọc đang chọn, không giới hạn 200 dòng
+  $('log-export').addEventListener('click', async () => {
+    const btn = $('log-export');
+    btn.disabled = true; btn.textContent = 'Đang xuất…';
+    try {
+      const res = await fetch('/api/logs/export?' + logParams(), { headers: { Authorization: 'Bearer ' + session.token } });
+      if (res.status === 401) throw new AuthError('Phiên đăng nhập đã hết hạn');
+      if (!res.ok) throw new Error('Xuất file lỗi (' + res.status + ')');
+      const blob = await res.blob();
+      const name = (res.headers.get('Content-Disposition') || '').match(/filename="?([^"]+)"?/);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name ? name[1] : 'log-dinh-vi-pa.csv';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    } catch (e) {
+      if (!onAuthFail(e)) alert(e.message);
+    } finally {
+      btn.disabled = false; btn.textContent = '⬇ Xuất Excel';
+    }
+  });
 
   $('log-form').addEventListener('submit', (ev) => { ev.preventDefault(); $('log-q').blur(); loadLogs(); });
   $('log-mine').addEventListener('change', loadLogs);
@@ -776,6 +1011,8 @@
 
   // ---------------------------------------------------------------- khởi động
   (async () => {
+    if (device !== 'pda' && device !== 'camera') device = await detectDevice();
+    applyDevice();
     const token = store.get('pa.token');
     if (!token) return showLogin();
     session = { token, user: null };

@@ -5,6 +5,8 @@ Luật nghiệp vụ:
   - 1 vị trí chứa được nhiều PA.
   - ĐỊNH VỊ chỉ dành cho PA chưa có vị trí; đổi vị trí phải dùng CHUYỂN VT.
 """
+import csv
+import io
 import re
 from contextlib import asynccontextmanager
 from datetime import datetime, time as dtime
@@ -12,7 +14,7 @@ from pathlib import Path
 
 import psycopg
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -248,15 +250,11 @@ def create_move(body: ScanIn, user: dict = Depends(require("move"))):
 
 # ---------------------------------------------------------------- log
 
-@app.get("/api/logs")
-def list_logs(
-    q: str = Query("", max_length=100),
-    scope: str = Query("today", pattern="^(today|all)$"),
-    action: str = Query("", pattern="^(|NHAP|CHUYEN)$"),
-    mine: bool = False,
-    limit: int = Query(200, ge=1, le=500),
-    user: dict = Depends(require("log")),
-):
+LOG_COLS = "id, scanned_at, action, pa_code, location_code, staff_name, username, prev_location"
+EXPORT_MAX = 100_000
+
+
+def log_filter(q: str, scope: str, action: str, mine: bool, user: dict) -> tuple[str, list]:
     where, params = [], []
     if scope == "today":
         start = datetime.combine(datetime.now(config.TZ).date(), dtime.min, tzinfo=config.TZ)
@@ -273,16 +271,54 @@ def list_logs(
         like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
         where.append("(pa_code ilike %s or location_code ilike %s or staff_name ilike %s)")
         params += [like, like, like]
-    where_sql = ("where " + " and ".join(where)) if where else ""
+    return ("where " + " and ".join(where)) if where else "", params
 
+
+class LogQuery(BaseModel):
+    q: str = Field("", max_length=100)
+    scope: str = Field("today", pattern="^(today|all)$")
+    action: str = Field("", pattern="^(|NHAP|CHUYEN)$")
+    mine: bool = False
+
+
+@app.get("/api/logs")
+def list_logs(
+    f: LogQuery = Depends(),
+    limit: int = Query(200, ge=1, le=500),
+    user: dict = Depends(require("log")),
+):
+    where_sql, params = log_filter(f.q, f.scope, f.action, f.mine, user)
     rows = db.fetch_all(
-        f"""select id, scanned_at, action, pa_code, location_code, staff_name, username, prev_location
-            from pallet_scans {where_sql}
-            order by scanned_at desc, id desc limit %s""",
+        f"select {LOG_COLS} from pallet_scans {where_sql} order by scanned_at desc, id desc limit %s",
         params + [limit],
     )
     total = db.fetch_one(f"select count(*) as n from pallet_scans {where_sql}", params)["n"]
     return {"rows": [scan_out(r) for r in rows], "total": total}
+
+
+@app.get("/api/logs/export")
+def export_logs(f: LogQuery = Depends(), user: dict = Depends(require("log"))):
+    """Xuất CSV (UTF-8 có BOM để Excel đọc đúng tiếng Việt) theo bộ lọc đang chọn."""
+    where_sql, params = log_filter(f.q, f.scope, f.action, f.mine, user)
+    rows = db.fetch_all(
+        f"select {LOG_COLS} from pallet_scans {where_sql} order by scanned_at desc, id desc limit %s",
+        params + [EXPORT_MAX],
+    )
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["Thời gian", "Thao tác", "Mã PA", "Vị trí cũ", "Vị trí", "Nhân viên scan", "Tài khoản"])
+    for r in rows:
+        w.writerow([
+            fmt_time(r["scanned_at"]),
+            "Chuyển vị trí" if r["action"] == "CHUYEN" else "Định vị",
+            r["pa_code"], r["prev_location"] or "", r["location_code"], r["staff_name"], r["username"],
+        ])
+    name = f"log-dinh-vi-pa-{datetime.now(config.TZ):%Y%m%d-%H%M}.csv"
+    return Response(
+        "\ufeff" + buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+    )
 
 
 # ---------------------------------------------------------------- quản lý user (admin)
