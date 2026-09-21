@@ -74,6 +74,7 @@ create table if not exists wms_bin_stocks (
 create index if not exists wms_bin_stocks_vtlt_idx on wms_bin_stocks (vtlt_code);
 create index if not exists wms_bin_stocks_ptlt_idx on wms_bin_stocks (ptlt_code);
 create index if not exists wms_bin_stocks_sku_idx  on wms_bin_stocks (sku);
+create index if not exists wms_bin_stocks_pa_idx   on wms_bin_stocks ((coalesce(ptlt_code, vtlt_code)));
 
 -- Lịch sử các lần đồng bộ
 create table if not exists wms_sync_log (

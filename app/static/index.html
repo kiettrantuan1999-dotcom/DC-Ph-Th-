@@ -181,6 +181,11 @@
   .btn-sync { background: var(--pri); color: #fff; height: 46px; font-size: 16px; }
   #wms-err { margin: 0 0 8px; min-height: 0; }
   .badge.st { background: #e3e8ee; color: var(--text); }
+  .badge.ws { font-size: 12px; padding: 3px 8px; white-space: nowrap; }
+  .badge.ws.ok { background: var(--ok-bg); color: var(--ok); }
+  .badge.ws.wait { background: var(--warn-bg); color: var(--warn); }
+  .badge.ws.pp { background: var(--mv-bg); color: var(--mv); }
+  .badge.ws.none { background: #eceff3; color: var(--muted); }
   .badge.st.wait { background: var(--warn-bg); color: var(--warn); }
 
   #boot { min-height: 100vh; display: grid; place-items: center; color: var(--muted); }
@@ -308,7 +313,7 @@
     <div id="log-list" class="cards"></div>
     <div class="tbl-wrap"><table class="tbl" id="log-table">
       <thead><tr>
-        <th>#</th><th>Thời gian</th><th>Thao tác</th><th>Mã PA</th><th>Vị trí cũ</th><th>Vị trí</th><th>Nhân viên scan</th><th>Tài khoản</th>
+        <th>#</th><th>Thời gian</th><th>Thao tác</th><th>Mã PA</th><th>Vị trí cũ</th><th>Vị trí</th><th>Status WMS</th><th>Nhân viên scan</th><th>Tài khoản</th>
       </tr></thead>
       <tbody></tbody>
     </table></div>
@@ -539,7 +544,7 @@
     const badge = isMove ? '<span class="badge mv">CHUYỂN</span>' : '<span class="badge in">ĐỊNH VỊ</span>';
     const from = isMove && r.prev_loc ? `<span class="old">${esc(r.prev_loc)}</span><span class="arrow">→</span>` : '<span class="arrow">→</span>';
     return `<div class="row">
-      <div class="l1">${badge}<span>${esc(r.pa)}</span>${from}<span class="loc">${esc(r.loc)}</span></div>
+      <div class="l1">${badge}<span>${esc(r.pa)}</span>${from}<span class="loc">${esc(r.loc)}</span>${showUser ? wmsBadge(r) : ''}</div>
       <div class="l2">${esc(r.time)} · ${esc(r.staff)}${showUser ? ' (@' + esc(r.user) + ')' : ''}</div>
     </div>`;
   }
@@ -876,6 +881,14 @@
   const logParams = () => new URLSearchParams({ q: $('log-q').value.trim(), scope: logScope, action: logAction, mine: $('log-mine').checked });
   const logBody = () => $('log-table').querySelector('tbody');
 
+  // Trạng thái định vị của PA theo dữ liệu WMS (so với bản đồng bộ mới nhất)
+  const WMS_BADGE = { DINH_VI: 'ok', CHUA: 'wait', PICKPACK: 'pp', NONE: 'none', OTHER: 'none' };
+  function wmsBadge(r) {
+    if (!r.wms_status) return '';
+    const tip = r.wms_loc ? `Trên WMS: ${r.wms_loc}` : (r.wms_status === 'NONE' ? 'PA không có trong dữ liệu WMS mới nhất' : '');
+    return `<span class="badge ws ${WMS_BADGE[r.wms_status] || 'none'}" title="${esc(tip)}">${esc(r.wms_label)}</span>`;
+  }
+
   function tableRowHtml(r, i) {
     const isMove = r.action === 'CHUYEN';
     return `<tr>
@@ -885,6 +898,7 @@
       <td class="code">${esc(r.pa)}</td>
       <td class="code muted">${esc(r.prev_loc)}</td>
       <td class="code loc">${esc(r.loc)}</td>
+      <td>${wmsBadge(r)}</td>
       <td>${esc(r.staff)}</td>
       <td class="muted">@${esc(r.user)}</td>
     </tr>`;
@@ -897,14 +911,15 @@
       const r = await api('/api/logs?' + logParams());
       if (seq !== logSeq) return;
       const shown = r.rows.length;
-      $('log-summary').textContent = r.total > shown ? `${r.total} dòng (hiện ${shown} mới nhất – xuất Excel để lấy đủ)` : `${r.total} dòng`;
+      $('log-summary').textContent = (r.total > shown ? `${r.total} dòng (hiện ${shown} mới nhất – xuất Excel để lấy đủ)` : `${r.total} dòng`)
+        + (r.wms_synced_at ? ` · Status theo WMS lúc ${r.wms_synced_at}` : ' · Chưa có dữ liệu WMS');
       $('log-list').innerHTML = shown ? r.rows.map((x) => rowHtml(x, true)).join('') : '<div class="empty">Không có dữ liệu</div>';
-      logBody().innerHTML = shown ? r.rows.map(tableRowHtml).join('') : '<tr><td colspan="8" class="empty">Không có dữ liệu</td></tr>';
+      logBody().innerHTML = shown ? r.rows.map(tableRowHtml).join('') : '<tr><td colspan="9" class="empty">Không có dữ liệu</td></tr>';
     } catch (e) {
       if (seq !== logSeq || onAuthFail(e)) return;
       $('log-summary').textContent = ' ';
       $('log-list').innerHTML = `<div class="empty err">${esc(e.message)}</div>`;
-      logBody().innerHTML = `<tr><td colspan="8" class="empty err">${esc(e.message)}</td></tr>`;
+      logBody().innerHTML = `<tr><td colspan="9" class="empty err">${esc(e.message)}</td></tr>`;
     }
   }
 

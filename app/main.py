@@ -256,6 +256,41 @@ def create_move(body: ScanIn, user: dict = Depends(require("move"))):
 LOG_COLS = "id, scanned_at, action, pa_code, location_code, staff_name, username, prev_location"
 EXPORT_MAX = 100_000
 
+# Log kèm trạng thái của PA trên WMS (bản đồng bộ mới nhất trong wms_bin_stocks).
+# Mã PA nằm ở Mã PTLT (PA đã cất lên vị trí) hoặc Mã VTLT (PA đang chờ lưu trữ).
+LOG_SELECT = """
+select s.id, s.scanned_at, s.action, s.pa_code, s.location_code, s.staff_name, s.username, s.prev_location,
+       w.lt_status as wms_lt_status, w.wms_loc
+from pallet_scans s
+left join lateral (
+    select lt_status, case when ptlt_code is not null then vtlt_code end as wms_loc
+    from wms_bin_stocks where coalesce(ptlt_code, vtlt_code) = s.pa_code limit 1
+) w on true
+"""
+
+# Tính chất LT trên WMS → trạng thái định vị hiển thị trong LOG
+WMS_PA_STATUS = {
+    "Có thể lấy hàng": ("DINH_VI", "Đã định vị"),
+    "Chờ lưu trữ": ("CHUA", "Chưa định vị"),
+    "Vị trí đầu hàng": ("PICKPACK", "Chờ PickPack"),
+}
+
+
+def wms_pa_status(lt_status: str | None) -> tuple[str, str]:
+    if lt_status is None:
+        return "NONE", "Không có trên WMS"
+    return WMS_PA_STATUS.get(lt_status, ("OTHER", lt_status))
+
+
+def log_out(row: dict) -> dict:
+    code, label = wms_pa_status(row["wms_lt_status"])
+    return {**scan_out(row), "wms_status": code, "wms_label": label, "wms_loc": row["wms_loc"] or ""}
+
+
+def last_wms_sync() -> str | None:
+    row = db.fetch_one("select max(finished_at) as t from wms_sync_log where status = 'OK'")
+    return fmt_time(row["t"]) if row and row["t"] else None
+
 
 def log_filter(q: str, scope: str, action: str, mine: bool, user: dict) -> tuple[str, list]:
     where, params = [], []
@@ -291,30 +326,26 @@ def list_logs(
     user: dict = Depends(require("log")),
 ):
     where_sql, params = log_filter(f.q, f.scope, f.action, f.mine, user)
-    rows = db.fetch_all(
-        f"select {LOG_COLS} from pallet_scans {where_sql} order by scanned_at desc, id desc limit %s",
-        params + [limit],
-    )
+    rows = db.fetch_all(f"{LOG_SELECT} {where_sql} order by s.scanned_at desc, s.id desc limit %s", params + [limit])
     total = db.fetch_one(f"select count(*) as n from pallet_scans {where_sql}", params)["n"]
-    return {"rows": [scan_out(r) for r in rows], "total": total}
+    return {"rows": [log_out(r) for r in rows], "total": total, "wms_synced_at": last_wms_sync()}
 
 
 @app.get("/api/logs/export")
 def export_logs(f: LogQuery = Depends(), user: dict = Depends(require("log"))):
     """Xuất CSV (UTF-8 có BOM để Excel đọc đúng tiếng Việt) theo bộ lọc đang chọn."""
     where_sql, params = log_filter(f.q, f.scope, f.action, f.mine, user)
-    rows = db.fetch_all(
-        f"select {LOG_COLS} from pallet_scans {where_sql} order by scanned_at desc, id desc limit %s",
-        params + [EXPORT_MAX],
-    )
+    rows = db.fetch_all(f"{LOG_SELECT} {where_sql} order by s.scanned_at desc, s.id desc limit %s", params + [EXPORT_MAX])
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["Thời gian", "Thao tác", "Mã PA", "Vị trí cũ", "Vị trí", "Nhân viên scan", "Tài khoản"])
+    w.writerow(["Thời gian", "Thao tác", "Mã PA", "Vị trí cũ", "Vị trí", "Nhân viên scan", "Tài khoản",
+                "Status WMS", "Tính chất LT (WMS)", "Vị trí trên WMS"])
     for r in rows:
         w.writerow([
             fmt_time(r["scanned_at"]),
             "Chuyển vị trí" if r["action"] == "CHUYEN" else "Định vị",
             r["pa_code"], r["prev_location"] or "", r["location_code"], r["staff_name"], r["username"],
+            wms_pa_status(r["wms_lt_status"])[1], r["wms_lt_status"] or "", r["wms_loc"] or "",
         ])
     name = f"log-dinh-vi-pa-{datetime.now(config.TZ):%Y%m%d-%H%M}.csv"
     return Response(
