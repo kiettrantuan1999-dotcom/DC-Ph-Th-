@@ -5,3 +5,4 @@ __pycache__/
 *.csv
 .claude/
 wms_agent.log*
+dist/

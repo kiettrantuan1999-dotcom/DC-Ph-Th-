@@ -6,6 +6,7 @@ rem  Tu khoi dong lai neu bi loi / mat mang.
 rem ==================================================================
 chcp 65001 >nul
 cd /d "%~dp0"
+title May dong bo WMS
 set "VENV=%LOCALAPPDATA%\dinh-vi-pa\venv"
 
 if not exist "%VENV%\Scripts\python.exe" (
