@@ -7,6 +7,7 @@ Web app chạy trên trình duyệt của PDA để định vị pallet nhập h
 - **CHUYỂN**: chuyển PA từ vị trí lưu trữ này sang vị trí khác.
 - **LOG**: xem lịch sử, tìm theo mã PA / vị trí / nhân viên, lọc theo ngày, loại thao tác, hoặc chỉ của mình.
 - **WMS**: lấy báo cáo tồn kho theo Bin từ WMS Supra, xem / tìm / lọc (ví dụ các PA *Chờ lưu trữ*) và xuất Excel.
+- **PHIẾU**: danh sách các PA đã scan định vị trong app nhưng trên WMS vẫn *Chờ lưu trữ*. Mỗi PA có mã QR vị trí và mã QR PA để scan cất hàng trên WMS. In được phiếu A4, sắp theo vị trí A→Z.
 - **USER**: admin tạo / sửa / khóa tài khoản, đặt lại mật khẩu.
 
 ### Luật vị trí
@@ -18,11 +19,11 @@ Web app chạy trên trình duyệt của PDA để định vị pallet nhập h
 
 ### Phân quyền
 
-| Loại tài khoản | ĐỊNH VỊ | CHUYỂN | LOG | WMS | USER |
-|---|:-:|:-:|:-:|:-:|:-:|
-| Admin | ✔ | ✔ | ✔ | ✔ | ✔ |
-| Chuyên viên | ✔ | ✔ | ✔ | ✔ | |
-| Nhân viên | ✔ | ✔ | | | |
+| Loại tài khoản | ĐỊNH VỊ | CHUYỂN | LOG | WMS | PHIẾU | USER |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|
+| Admin | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
+| Chuyên viên | ✔ | ✔ | ✔ | ✔ | ✔ | |
+| Nhân viên | ✔ | ✔ | | | | |
 
 Để đổi quyền, sửa bảng `ROLES` trong `app/main.py`.
 

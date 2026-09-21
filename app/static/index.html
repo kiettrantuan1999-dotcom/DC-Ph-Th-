@@ -182,6 +182,46 @@
   #wms-err { margin: 0 0 8px; min-height: 0; }
   .badge.st { background: #e3e8ee; color: var(--text); }
   .badge.ws { font-size: 12px; padding: 3px 8px; white-space: nowrap; }
+
+  /* ---------- PHIẾU: QR trên màn hình ---------- */
+  .pw-hint { text-transform: none; font-weight: 600; font-size: 13px; }
+  .pw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+  .pw-card { background: var(--card); border-radius: 12px; padding: 10px 12px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .pw-card.first { border-top: 4px solid var(--pri); }
+  .pw-card .pw-no { font-size: 12px; color: var(--muted); font-weight: 700; }
+  .pw-qrs { display: flex; gap: 12px; margin: 6px 0 8px; }
+  .pw-qr { flex: 1; text-align: center; }
+  .pw-qr .lbl2 { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .3px; }
+  .pw-qr svg { width: 100%; max-width: 150px; height: auto; display: block; margin: 4px auto; }
+  .pw-qr .code { font-family: ui-monospace, Consolas, monospace; font-weight: 800; font-size: 16px; word-break: break-all; }
+  .pw-qr.loc .code { color: var(--pri); }
+  .pw-card .pw-goods { font-size: 13px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 6px; }
+  .pw-card .pw-goods b { color: var(--text); }
+
+  /* ---------- PHIẾU: bản in A4 ---------- */
+  #print-sheet { display: none; }
+  @page { size: A4 portrait; margin: 10mm 10mm 12mm; }
+  @media print {
+    body { background: #fff; }
+    body > *:not(#print-sheet) { display: none !important; }
+    #print-sheet { display: block; font: 11pt/1.3 Arial, sans-serif; color: #000; }
+  }
+  .ps-head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 6px; }
+  .ps-head h1 { font-size: 16pt; margin: 0 0 2px; }
+  .ps-head .ps-sub { font-size: 9pt; }
+  .ps-sign { font-size: 9pt; text-align: right; line-height: 1.9; white-space: nowrap; }
+  .ps-table { width: 100%; border-collapse: collapse; }
+  .ps-table th { font-size: 8.5pt; text-transform: uppercase; background: #eee; border: 1px solid #000; padding: 4px; }
+  .ps-table td { border: 1px solid #000; padding: 3px 5px; vertical-align: middle; font-size: 9.5pt; }
+  .ps-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .ps-table tr.grp td { border-top: 2.5px solid #000; }
+  .ps-table .ps-no { width: 8mm; text-align: center; }
+  .ps-table .ps-qr { width: 34mm; text-align: center; }
+  .ps-table .ps-qr svg { width: 22mm; height: 22mm; display: block; margin: 1mm auto 0; }
+  .ps-table .ps-code { font: bold 10.5pt Consolas, monospace; }
+  .ps-table .ps-chk { width: 18mm; text-align: center; }
+  .ps-box { display: inline-block; width: 6mm; height: 6mm; border: 1.5px solid #000; }
+  .ps-foot { margin-top: 6px; font-size: 8.5pt; }
   .badge.ws.ok { background: var(--ok-bg); color: var(--ok); }
   .badge.ws.wait { background: var(--warn-bg); color: var(--warn); }
   .badge.ws.pp { background: var(--mv-bg); color: var(--mv); }
@@ -224,6 +264,7 @@
       <button type="button" data-tab="mv" data-perm="move">CHUYỂN</button>
       <button type="button" data-tab="log" data-perm="log">LOG</button>
       <button type="button" data-tab="wms" data-perm="wms">WMS</button>
+      <button type="button" data-tab="pw" data-perm="putaway">PHIẾU</button>
       <button type="button" data-tab="users" data-perm="users">USER</button>
     </nav>
   </header>
@@ -348,6 +389,25 @@
     </table></div>
   </main>
 
+  <!-- ----- PHIẾU: định vị thực tế trên WMS ----- -->
+  <main id="tab-pw" class="tab wide hidden">
+    <div class="card wms-bar">
+      <div class="wms-info">
+        <b>Phiếu định vị trên WMS – PA chưa định vị</b>
+        <span id="pw-meta">Đang tải…</span>
+      </div>
+      <button type="button" class="btn btn-light" id="pw-sync">⟳ Cập nhật từ WMS</button>
+      <button type="button" class="btn btn-sync" id="pw-print">🖨 In phiếu A4</button>
+    </div>
+    <div class="msg-err" id="pw-err"></div>
+    <form class="search" id="pw-form">
+      <input class="inp" id="pw-q" placeholder="Lọc theo vị trí / mã PA (VD: LT.06)" autocomplete="off" spellcheck="false">
+      <button class="btn" type="submit">Lọc</button>
+    </form>
+    <div class="sec-title"><span id="pw-summary">&nbsp;</span><span class="pw-hint">Scan QR trên màn hình hoặc in phiếu</span></div>
+    <div id="pw-list" class="pw-grid"></div>
+  </main>
+
   <!-- ----- USER (admin) ----- -->
   <main id="tab-users" class="tab hidden">
     <button type="button" class="btn btn-add" id="user-add">+ Tạo tài khoản</button>
@@ -384,6 +444,9 @@
     </div>
   </form>
 </div>
+
+<!-- ----- Phiếu A4 (chỉ hiện khi in) ----- -->
+<div id="print-sheet"></div>
 
 <!-- ----- Camera quét mã (chế độ điện thoại) ----- -->
 <div class="cam-bg hidden" id="cam">
@@ -503,6 +566,7 @@
     if (FORMS[name]) FORMS[name].focusNext();
     else if (name === 'log') loadLogs();
     else if (name === 'wms') loadWms();
+    else if (name === 'pw') loadPutaway();
     else if (name === 'users') loadUsers();
   }
 
@@ -1098,6 +1162,130 @@
   }
   chipGroup('scope', (v) => { logScope = v; });
   chipGroup('action', (v) => { logAction = v; });
+
+  // ---------------------------------------------------------------- PHIẾU: định vị thực tế trên WMS
+  const QR_GEN = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js';
+  let qrGen = null, pwData = null, pwSeq = 0;
+
+  function loadQrGen() {
+    qrGen = qrGen || new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = QR_GEN;
+      s.onload = () => resolve(window.qrcode);
+      s.onerror = () => { qrGen = null; reject(new Error('Không tải được bộ tạo mã QR – kiểm tra mạng')); };
+      document.head.appendChild(s);
+    });
+    return qrGen;
+  }
+
+  function qrSvg(text) {
+    const qr = window.qrcode(0, 'M');
+    qr.addData(String(text));
+    qr.make();
+    return qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+  }
+
+  function goodsText(r) {
+    const more = r.sku_count > 1 ? ` (+${r.sku_count - 1} SKU khác)` : '';
+    return { name: `${r.sku || ''} · ${r.product || ''}${more}`, qty: `${fmtQty(r.qty)} ${r.uom || ''}`.trim() };
+  }
+
+  function renderPutaway() {
+    const r = pwData;
+    const n = r.rows.length;
+    $('pw-meta').textContent = (r.wms_synced_at ? `Theo dữ liệu WMS lúc ${r.wms_synced_at}` : 'Chưa có dữ liệu WMS – bấm Cập nhật từ WMS')
+      + (r.not_scanned ? ` · ${r.not_scanned} PA chờ lưu trữ trên WMS chưa được scan định vị trong app` : '');
+    $('pw-summary').textContent = `${n} PA chưa định vị · ${r.locations} vị trí`;
+    $('pw-print').disabled = !n;
+    if (!n) { $('pw-list').innerHTML = '<div class="empty">🎉 Không còn PA nào chưa định vị</div>'; return; }
+    let prev = null;
+    $('pw-list').innerHTML = r.rows.map((x, i) => {
+      const g = goodsText(x);
+      const first = x.loc !== prev; prev = x.loc;
+      return `<div class="pw-card${first ? ' first' : ''}">
+        <div class="pw-no">#${i + 1} · scan lúc ${esc(x.time)} · ${esc(x.staff)}</div>
+        <div class="pw-qrs">
+          <div class="pw-qr loc"><div class="lbl2">Vị trí lưu trữ</div>${qrSvg(x.loc)}<div class="code">${esc(x.loc)}</div></div>
+          <div class="pw-qr"><div class="lbl2">Mã PA</div>${qrSvg(x.pa)}<div class="code">${esc(x.pa)}</div></div>
+        </div>
+        <div class="pw-goods">${esc(g.name)}<br><b>SL: ${esc(g.qty)}</b>${x.po ? ' · PO ' + esc(x.po) : ''}</div>
+      </div>`;
+    }).join('');
+  }
+
+  async function loadPutaway() {
+    const seq = ++pwSeq;
+    $('pw-summary').textContent = 'Đang tải…';
+    $('pw-err').textContent = '';
+    try {
+      const [r] = await Promise.all([api('/api/putaway?' + new URLSearchParams({ q: $('pw-q').value.trim() })), loadQrGen()]);
+      if (seq !== pwSeq) return;
+      pwData = r;
+      renderPutaway();
+    } catch (e) {
+      if (seq !== pwSeq || onAuthFail(e)) return;
+      $('pw-summary').textContent = ' ';
+      $('pw-err').textContent = e.message;
+    }
+  }
+
+  function printPutaway() {
+    const r = pwData;
+    if (!r || !r.rows.length) return;
+    const now = new Date().toLocaleString('vi-VN');
+    let prev = null;
+    const body = r.rows.map((x, i) => {
+      const g = goodsText(x);
+      const grp = x.loc !== prev && i > 0; prev = x.loc;
+      return `<tr class="${grp ? 'grp' : ''}">
+        <td class="ps-no">${i + 1}</td>
+        <td class="ps-qr">${qrSvg(x.loc)}<div class="ps-code">${esc(x.loc)}</div></td>
+        <td class="ps-qr">${qrSvg(x.pa)}<div class="ps-code">${esc(x.pa)}</div></td>
+        <td>${esc(g.name)}<br><b>SL: ${esc(g.qty)}</b>${x.po ? '<br>PO: ' + esc(x.po) : ''}${x.received ? ' · Nhận: ' + esc(x.received) : ''}</td>
+        <td class="ps-chk"><span class="ps-box"></span></td>
+      </tr>`;
+    }).join('');
+    $('print-sheet').innerHTML = `
+      <div class="ps-head">
+        <div>
+          <h1>PHIẾU ĐỊNH VỊ PALLET TRÊN WMS</h1>
+          <div class="ps-sub">DC Phú Thọ · In lúc ${esc(now)} · Người in: ${esc(session.user.full_name)}<br>
+            Dữ liệu WMS lúc ${esc(r.wms_synced_at || '—')} · <b>${r.rows.length} PA · ${r.locations} vị trí</b> · Sắp xếp theo vị trí A→Z</div>
+        </div>
+        <div class="ps-sign">Người thực hiện: ............................<br>Ký tên: ........................................</div>
+      </div>
+      <table class="ps-table">
+        <thead><tr><th>#</th><th>Vị trí lưu trữ</th><th>Mã PA</th><th>Hàng hóa</th><th>Đã định vị</th></tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+      <div class="ps-foot">Scan QR vị trí và QR mã PA trên WMS để cất hàng, xong đánh dấu vào ô. Làm xong bấm "Cập nhật từ WMS" trên app để kiểm tra lại.</div>`;
+    window.print();
+  }
+
+  $('pw-form').addEventListener('submit', (ev) => { ev.preventDefault(); $('pw-q').blur(); loadPutaway(); });
+  $('pw-print').addEventListener('click', printPutaway);
+  $('pw-sync').addEventListener('click', async () => {
+    const btn = $('pw-sync');
+    btn.disabled = true; btn.textContent = 'Đang lấy dữ liệu WMS…';
+    $('pw-err').textContent = '';
+    try {
+      let st = await api('/api/wms/sync', { method: 'POST', timeout: 180000 });
+      const t0 = Date.now();
+      while (st.running && Date.now() - t0 < 11 * 60 * 1000) {
+        btn.textContent = st.pending ? 'Đang chờ máy đồng bộ…' : 'Đang lấy dữ liệu WMS…';
+        await new Promise((res) => setTimeout(res, 3000));
+        st = await api('/api/wms/status');
+      }
+      if (st.last_error) { $('pw-err').textContent = 'Lấy dữ liệu WMS lỗi: ' + st.last_error; beep(false); }
+      else beep(true);
+      loadPutaway();
+    } catch (e) {
+      if (!onAuthFail(e)) { $('pw-err').textContent = e.message; beep(false); }
+    } finally {
+      btn.disabled = false; btn.textContent = '⟳ Cập nhật từ WMS';
+    }
+  });
+
 
   // ---------------------------------------------------------------- user (admin)
   let users = [], roles = {}, editing = null, ufActive = true;

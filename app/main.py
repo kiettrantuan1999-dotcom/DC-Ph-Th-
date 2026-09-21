@@ -27,8 +27,8 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 # Quyền theo loại tài khoản
 ROLES = {
-    "admin": {"label": "Admin", "perms": {"scan", "move", "log", "wms", "users"}},
-    "chuyenvien": {"label": "Chuyên viên", "perms": {"scan", "move", "log", "wms"}},
+    "admin": {"label": "Admin", "perms": {"scan", "move", "log", "wms", "putaway", "users"}},
+    "chuyenvien": {"label": "Chuyên viên", "perms": {"scan", "move", "log", "wms", "putaway"}},
     "nhanvien": {"label": "Nhân viên", "perms": {"scan", "move"}},
 }
 
@@ -353,6 +353,56 @@ def export_logs(f: LogQuery = Depends(), user: dict = Depends(require("log"))):
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{name}"'},
     )
+
+
+# ---------------------------------------------------------------- PHIẾU: định vị thực tế trên WMS
+
+WMS_WAITING = "Chờ lưu trữ"
+
+PUTAWAY_SQL = """
+select l.pa_code, l.location_code, l.updated_at, l.staff_name,
+       w.sku_count, w.qty, w.sku, w.product_name, w.uom, w.po_code, w.received_date
+from pallet_locations l
+join lateral (
+    select count(*) as sku_count, sum(qty) as qty, min(sku) as sku, min(product_name) as product_name,
+           min(uom) as uom, min(po_code) as po_code, min(received_date) as received_date
+    from wms_bin_stocks
+    where coalesce(ptlt_code, vtlt_code) = l.pa_code and lt_status = %s
+    having count(*) > 0
+) w on true
+{where}
+order by l.location_code, l.pa_code
+"""
+
+
+@app.get("/api/putaway")
+def putaway_list(q: str = Query("", max_length=100), _user: dict = Depends(require("putaway"))):
+    """PA đã scan định vị trong app nhưng trên WMS vẫn 'Chờ lưu trữ' – sắp A→Z theo vị trí."""
+    params: list = [WMS_WAITING]
+    where = ""
+    q = q.strip()
+    if q:
+        like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        where = "where l.pa_code ilike %s or l.location_code ilike %s"
+        params += [like, like]
+    rows = db.fetch_all(PUTAWAY_SQL.format(where=where), params)
+    not_scanned = db.fetch_one(
+        """select count(distinct coalesce(ptlt_code, vtlt_code)) as n from wms_bin_stocks w
+           where lt_status = %s and not exists (
+               select 1 from pallet_locations l where l.pa_code = coalesce(w.ptlt_code, w.vtlt_code))""",
+        (WMS_WAITING,),
+    )["n"]
+    return {
+        "rows": [{
+            "pa": r["pa_code"], "loc": r["location_code"], "time": fmt_time(r["updated_at"]), "staff": r["staff_name"],
+            "sku": r["sku"], "product": r["product_name"], "sku_count": r["sku_count"],
+            "qty": float(r["qty"]) if r["qty"] is not None else None, "uom": r["uom"],
+            "po": r["po_code"], "received": r["received_date"],
+        } for r in rows],
+        "locations": len({r["location_code"] for r in rows}),
+        "not_scanned": not_scanned,
+        "wms_synced_at": last_wms_sync(),
+    }
 
 
 # ---------------------------------------------------------------- WMS: tồn kho theo Bin
