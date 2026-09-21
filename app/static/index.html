@@ -9,135 +9,275 @@
 <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
 <title>Định vị PA</title>
 <style>
+  /* ================================================================
+     Định vị PA – giao diện kiểu WMS doanh nghiệp
+     Laptop: menu dọc trái + thanh trên · PDA/điện thoại: thanh trên + menu đáy
+     ================================================================ */
   :root {
-    --bg: #eef1f5; --card: #fff; --text: #1b1f24; --muted: #5f6b7a; --line: #cfd6df;
-    --pri: #0b5cad; --pri-d: #084a8c; --pri-bg: #e7f0fb;
+    --nav-bg: #0f2342; --nav-bg-2: #0b1a33; --nav-fg: #b8c4d8; --nav-fg-strong: #fff; --nav-active: #1f6fe5;
+    --bg: #f2f4f8; --card: #fff; --text: #17212f; --muted: #64748b; --line: #e1e6ee; --line-2: #eef1f6;
+    --pri: #1d5fd1; --pri-d: #174ea9; --pri-bg: #e9f1fe;
     --mv: #6a3fb5; --mv-bg: #f1ebfb;
-    --ok: #1a7f37; --ok-bg: #e6f4ea; --err: #c62828; --err-bg: #fdecea; --warn: #8a5a00; --warn-bg: #fff4d6;
+    --ok: #15803d; --ok-bg: #e7f6ec; --err: #c62828; --err-bg: #fdecea; --warn: #92600a; --warn-bg: #fff5d9;
+    --radius: 10px; --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+    --sidebar-w: 236px; --topbar-h: 58px;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: var(--bg); color: var(--text);
-    font: 16px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+    font: 14px/1.4 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; }
   button, input, select { font: inherit; color: inherit; }
   .hidden { display: none !important; }
+  svg.ic { width: 20px; height: 20px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 
-  /* ---------- login ---------- */
-  #view-login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
-  .login-box { width: 100%; max-width: 380px; background: var(--card); border-radius: 14px; padding: 24px 20px;
-    box-shadow: 0 2px 10px rgba(0,0,0,.08); }
-  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
-  .brand-logo { width: 44px; height: 44px; border-radius: 10px; background: var(--pri); color: #fff;
-    display: grid; place-items: center; font-weight: 800; font-size: 18px; }
-  .brand h1 { margin: 0; font-size: 21px; }
-  .brand p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+  /* ---------- đăng nhập ---------- */
+  #view-login { min-height: 100vh; display: flex; }
+  .login-art { flex: 1; background: linear-gradient(150deg, var(--nav-bg) 0%, #173a73 100%); color: #fff;
+    display: flex; flex-direction: column; justify-content: space-between; padding: 40px 48px; }
+  .login-art .la-brand { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 18px; }
+  .login-art h2 { font-size: 30px; line-height: 1.25; margin: 0 0 12px; font-weight: 700; }
+  .login-art p { color: #c9d5ea; margin: 0; max-width: 420px; font-size: 15px; }
+  .login-art .la-foot { color: #8fa3c4; font-size: 12px; }
+  .login-side { width: 460px; max-width: 100%; display: flex; align-items: center; justify-content: center; padding: 24px; background: #fff; }
+  .login-box { width: 100%; max-width: 360px; }
+  .brand-logo { width: 38px; height: 38px; border-radius: 9px; background: var(--nav-active); color: #fff;
+    display: grid; place-items: center; font-weight: 800; font-size: 15px; letter-spacing: .5px; }
+  .login-box h1 { margin: 0 0 4px; font-size: 24px; }
+  .login-box .lb-sub { color: var(--muted); margin: 0 0 22px; }
+  @media (max-width: 767px) { .login-art { display: none; } .login-side { width: 100%; background: var(--bg); }
+    .login-box { background: #fff; padding: 24px 20px; border-radius: 14px; box-shadow: var(--shadow); } }
 
-  label.lbl { display: block; font-size: 14px; font-weight: 600; color: var(--muted); margin: 12px 0 5px; }
-  .inp { width: 100%; height: 52px; padding: 0 14px; border: 2px solid var(--line); border-radius: 10px;
-    background: #fff; font-size: 18px; outline: none; }
+  label.lbl { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin: 12px 0 5px; }
+  .inp { width: 100%; height: 44px; padding: 0 12px; border: 1px solid #cfd6e0; border-radius: 8px;
+    background: #fff; font-size: 15px; outline: none; transition: border-color .15s, box-shadow .15s; }
   .inp:focus { border-color: var(--pri); box-shadow: 0 0 0 3px var(--pri-bg); }
-  select.inp { padding: 0 10px; }
-  .btn { height: 52px; border: 0; border-radius: 10px; padding: 0 18px; font-weight: 700; font-size: 17px; cursor: pointer; }
-  .btn:disabled { opacity: .6; }
-  .btn-pri { background: var(--pri); color: #fff; width: 100%; margin-top: 18px; }
-  .btn-pri:active { background: var(--pri-d); }
-  .msg-err { color: var(--err); min-height: 22px; margin-top: 10px; font-weight: 600; }
-
-  /* ---------- main ---------- */
-  header { position: sticky; top: 0; z-index: 5; background: var(--pri); color: #fff; }
-  .hdr { display: flex; align-items: center; gap: 10px; padding: 8px 12px; }
-  .hdr .who { flex: 1; min-width: 0; }
-  .hdr .who b { display: block; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .hdr .who span { font-size: 13px; opacity: .85; }
-  .hdr button { background: rgba(255,255,255,.18); color: #fff; border: 0; border-radius: 8px; height: 38px; padding: 0 10px; font-weight: 600; white-space: nowrap; cursor: pointer; }
-  .tabs { display: flex; }
-  .tabs button { flex: 1; height: 46px; background: transparent; border: 0; color: rgba(255,255,255,.75);
-    font-weight: 700; font-size: 14px; border-bottom: 4px solid transparent; padding: 0 2px; cursor: pointer; }
-  .tabs button.on { color: #fff; border-bottom-color: #fff; }
-
-  main { padding: 12px; max-width: 640px; margin: 0 auto; }
-  .card { background: var(--card); border-radius: 12px; padding: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
-  .card.move { border-top: 5px solid var(--mv); }
-  .card.in { border-top: 5px solid var(--pri); }
-  .card-title { font-weight: 800; font-size: 15px; margin-bottom: 8px; }
-  .card.move .card-title { color: var(--mv); } .card.in .card-title { color: var(--pri); }
-
-  .field { margin-bottom: 10px; }
-  .field .lbl-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
-  .field .lbl-row label { font-size: 14px; font-weight: 700; color: var(--muted); }
-  .step { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
-    background: var(--line); color: #fff; font-size: 13px; margin-right: 6px; }
-  .field.active .step { background: var(--pri); }
-  .field.done .step { background: var(--ok); }
-  .field .inp { height: 56px; font-size: 22px; font-weight: 700; letter-spacing: .5px; }
-  .field.active .inp { border-color: var(--pri); background: var(--pri-bg); }
-  .field .inp.staff { font-size: 18px; font-weight: 600; letter-spacing: 0; }
-  .link-btn { background: none; border: 0; color: var(--pri); font-weight: 700; font-size: 14px; padding: 4px 0; cursor: pointer; }
-
-  .cur-loc { margin: -2px 0 10px; padding: 8px 12px; border-radius: 10px; background: var(--mv-bg); font-size: 15px; }
-  .cur-loc b { font-size: 20px; color: var(--mv); }
-  .cur-loc.err { background: var(--err-bg); color: var(--err); font-weight: 600; }
-  .cur-loc.wait { color: var(--muted); }
-
-  .actions { display: flex; gap: 8px; margin-top: 4px; }
-  .actions .btn { flex: 1; }
+  select.inp { padding: 0 8px; }
+  .btn { height: 40px; border: 1px solid transparent; border-radius: 8px; padding: 0 16px; font-weight: 600; font-size: 14px;
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .btn-pri, .btn-sync, .btn-add { background: var(--pri); color: #fff; }
+  .btn-pri:hover, .btn-sync:hover, .btn-add:hover { background: var(--pri-d); }
+  .btn-pri { width: 100%; height: 46px; margin-top: 20px; font-size: 15px; }
+  .btn-light { background: #fff; border-color: #cfd6e0; color: var(--text); }
+  .btn-light:hover { background: #f6f8fb; }
   .btn-save { background: var(--ok); color: #fff; }
   .btn-move { background: var(--mv); color: #fff; }
-  .btn-light { background: #e3e8ee; color: var(--text); flex: 0 0 auto !important; }
+  .msg-err { color: var(--err); min-height: 20px; margin-top: 10px; font-weight: 600; }
+  .link-btn { background: none; border: 0; color: var(--pri); font-weight: 600; font-size: 13px; padding: 4px 0; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 4px; }
+  .link-btn:hover { text-decoration: underline; }
 
-  .result { margin-top: 12px; border-radius: 12px; padding: 12px 14px; border: 2px solid; }
-  .result.ok { background: var(--ok-bg); border-color: var(--ok); }
-  .result.warn { background: var(--warn-bg); border-color: #e0a800; }
-  .result.err { background: var(--err-bg); border-color: var(--err); }
-  .result .r-title { font-weight: 800; font-size: 15px; }
-  .result.ok .r-title { color: var(--ok); } .result.warn .r-title { color: var(--warn); } .result.err .r-title { color: var(--err); }
-  .result .r-main { font-size: 22px; font-weight: 800; margin: 4px 0; word-break: break-all; }
-  .result .r-sub { font-size: 14px; color: var(--muted); }
-  .result .r-note { font-size: 15px; font-weight: 700; margin-top: 4px; }
+  /* ---------- khung app ---------- */
+  .sidebar { position: fixed; inset: 0 auto 0 0; width: var(--sidebar-w); background: var(--nav-bg); color: var(--nav-fg);
+    display: flex; flex-direction: column; z-index: 10; }
+  .sb-brand { height: var(--topbar-h); display: flex; align-items: center; gap: 10px; padding: 0 18px; background: var(--nav-bg-2); }
+  .sb-brand b { color: #fff; font-size: 15px; display: block; line-height: 1.15; }
+  .sb-brand span { font-size: 11px; color: #8fa3c4; letter-spacing: .3px; }
+  .sb-nav { flex: 1; overflow-y: auto; padding: 10px 10px; }
+  .sb-group { font-size: 11px; font-weight: 700; letter-spacing: .8px; color: #7187ab; text-transform: uppercase; padding: 14px 10px 6px; }
+  .sb-nav .nav-btn { width: 100%; display: flex; align-items: center; gap: 11px; height: 40px; padding: 0 12px; border: 0; border-radius: 8px;
+    background: transparent; color: var(--nav-fg); font-size: 14px; font-weight: 500; cursor: pointer; text-align: left; margin-bottom: 2px; }
+  .sb-nav .nav-btn:hover { background: rgba(255,255,255,.06); color: #fff; }
+  .sb-nav .nav-btn.on { background: var(--nav-active); color: #fff; font-weight: 600; }
+  .sb-foot { padding: 12px 18px; font-size: 11px; color: #6e84a8; border-top: 1px solid rgba(255,255,255,.07); }
 
-  .sec-title { display: flex; justify-content: space-between; align-items: baseline; margin: 16px 2px 6px;
-    font-size: 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .3px; }
+  .main-col { margin-left: var(--sidebar-w); min-height: 100vh; }
+  .topbar { position: sticky; top: 0; z-index: 8; height: var(--topbar-h); background: #fff; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 12px; padding: 0 24px; }
+  .tb-title { flex: 1; min-width: 0; }
+  .tb-title .crumb { font-size: 12px; color: var(--muted); }
+  .tb-title h1 { margin: 0; font-size: 18px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wh-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 15px;
+    background: var(--pri-bg); color: var(--pri); font-weight: 700; font-size: 12px; white-space: nowrap; }
+  .wh-chip i { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; display: inline-block; }
+  .tb-btn { height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--text);
+    font-weight: 600; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .tb-btn:hover { background: #f6f8fb; }
+  .tb-user { display: flex; align-items: center; gap: 9px; padding-left: 12px; border-left: 1px solid var(--line); }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--nav-bg); color: #fff; display: grid; place-items: center;
+    font-weight: 700; font-size: 13px; flex: 0 0 auto; }
+  .who b { display: block; font-size: 13px; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .who span { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .bottom-nav { display: none; }
 
-  .row { background: var(--card); border-radius: 10px; padding: 9px 12px; margin-bottom: 6px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
-  .row .l1 { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-weight: 800; font-size: 17px; word-break: break-all; }
-  .row .arrow { color: var(--muted); font-weight: 400; }
-  .row .loc { color: var(--pri); }
-  .row .old { color: var(--muted); text-decoration: line-through; font-weight: 600; }
-  .row .l2 { font-size: 13px; color: var(--muted); margin-top: 2px; }
-  .badge { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 6px; letter-spacing: .3px; vertical-align: 2px; }
+  main.tab { padding: 20px 24px 32px; margin: 0 auto; max-width: 600px; }
+  main.tab.wide { max-width: none; margin: 0; }
+
+  /* ---------- PDA / điện thoại ---------- */
+  @media (max-width: 767px) {
+    .sidebar { display: none; }
+    .main-col { margin-left: 0; padding-bottom: 66px; }
+    .topbar { background: var(--nav-bg); color: #fff; border: 0; padding: 0 12px; height: 54px; gap: 8px; }
+    .tb-title .crumb { color: #9fb2d1; font-size: 11px; }
+    .tb-title h1 { font-size: 16px; }
+    .wh-chip, .tb-user .who, .tb-hide-m { display: none; }
+    .tb-btn { background: rgba(255,255,255,.12); border-color: transparent; color: #fff; height: 34px; }
+    .tb-user { border: 0; padding: 0; }
+    .avatar { background: var(--nav-active); width: 30px; height: 30px; font-size: 12px; }
+    main.tab { padding: 12px 12px 20px; }
+    .bottom-nav { display: flex; position: fixed; inset: auto 0 0 0; height: 62px; background: #fff; border-top: 1px solid var(--line);
+      z-index: 9; box-shadow: 0 -2px 8px rgba(16,24,40,.06); }
+    .bottom-nav .nav-btn { flex: 1; border: 0; background: none; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 3px; font-size: 11px; font-weight: 600; color: var(--muted); padding: 0 2px; cursor: pointer; }
+    .bottom-nav .nav-btn.on { color: var(--pri); }
+    .bottom-nav .nav-btn.on svg { stroke-width: 2.3; }
+  }
+
+  /* ---------- khối nội dung chung ---------- */
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .page-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .page-bar .pb-info { flex: 1; min-width: 220px; }
+  .page-bar .pb-info b { font-size: 15px; display: block; }
+  .page-bar .pb-info span { font-size: 13px; color: var(--muted); }
+  .wms-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .wms-info { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 2px; }
+  .wms-info b { font-size: 15px; }
+  .wms-info span { font-size: 13px; color: var(--muted); }
+
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; box-shadow: var(--shadow);
+    border-left: 4px solid var(--pri); }
+  .kpi .k-lbl { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
+  .kpi .k-val { font-size: 24px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .kpi .k-sub { font-size: 12px; color: var(--muted); }
+  .kpi.ok { border-left-color: var(--ok); } .kpi.warn { border-left-color: #e0a100; } .kpi.mv { border-left-color: var(--mv); }
+  .kpi.muted { border-left-color: #94a3b8; }
+  @media (max-width: 767px) { .kpis { grid-template-columns: repeat(2, 1fr); gap: 8px; } .kpi .k-val { font-size: 20px; } }
+
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 10px 12px; margin-bottom: 12px; box-shadow: var(--shadow); }
+  .search { display: flex; gap: 8px; flex: 1 1 320px; max-width: 520px; }
+  .search .inp { height: 38px; font-size: 14px; }
+  .search .btn { height: 38px; background: var(--pri); color: #fff; }
+  .filters { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0; }
+  .filters .chip:first-child { border-radius: 8px 0 0 8px; }
+  .filters .chip:last-of-type { border-radius: 0 8px 8px 0; }
+  .filters .chip:only-of-type { border-radius: 8px; }
+  .filters .chip + .chip { margin-left: -1px; }
+  #wms-statuses { gap: 6px; }
+  #wms-statuses .chip { border-radius: 16px !important; margin-left: 0 !important; }
+  .chip { height: 34px; padding: 0 12px; border: 1px solid #cfd6e0; background: #fff; font-weight: 600; font-size: 13px; color: var(--text);
+    cursor: pointer; white-space: nowrap; position: relative; }
+  .chip:hover { background: #f6f8fb; }
+  .chip.on { background: var(--pri); border-color: var(--pri); color: #fff; z-index: 1; }
+  .chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; margin-left: 6px; cursor: pointer; }
+  .chk input { width: 16px; height: 16px; accent-color: var(--pri); }
+  .tb-sep { width: 1px; height: 24px; background: var(--line); }
+
+  .sec-title { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 2px 8px;
+    font-size: 13px; font-weight: 600; color: var(--muted); }
+  .log-tools { display: flex; gap: 16px; }
+  #wms-err, #pw-err { margin: 0 0 10px; min-height: 0; }
+
+  /* ---------- bảng dữ liệu ---------- */
+  .tbl-wrap { display: none; }
+  @media (min-width: 768px) {
+    main.wide .cards { display: none; }
+    main.wide .tbl-wrap { display: block; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: auto; max-height: calc(100vh - 330px); min-height: 200px; }
+  }
+  .tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+  .tbl th { position: sticky; top: 0; z-index: 1; background: #f7f9fc; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .4px; color: #5b6b82; padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .tbl td { padding: 8px 12px; border-bottom: 1px solid var(--line-2); white-space: nowrap; }
+  .tbl tbody tr:nth-child(even) td { background: #fafbfd; }
+  .tbl tbody tr:hover td { background: #eef4ff; }
+  .tbl td.code { font-weight: 600; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12.5px; }
+  .tbl td.loc { color: var(--pri); }
+  .tbl td.num { color: var(--muted); text-align: right; width: 44px; }
+  .tbl td.muted { color: var(--muted); }
+  .tbl td.empty { text-align: center; color: var(--muted); padding: 36px; white-space: normal; }
+  .tbl th.r, .tbl td.r { text-align: right; font-variant-numeric: tabular-nums; }
+  .tbl td.wrap { white-space: normal; min-width: 220px; max-width: 380px; }
+
+  /* ---------- nhãn trạng thái ---------- */
+  .badge { display: inline-flex; align-items: center; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+    letter-spacing: .2px; line-height: 1.5; white-space: nowrap; }
   .badge.in { background: var(--pri-bg); color: var(--pri); }
   .badge.mv { background: var(--mv-bg); color: var(--mv); }
   .badge.off { background: var(--err-bg); color: var(--err); }
-  .badge.role { background: #e3e8ee; color: var(--text); }
-  .empty { text-align: center; color: var(--muted); padding: 24px 8px; }
+  .badge.role { background: #eef1f6; color: #334155; }
+  .badge.st { background: #eef1f6; color: #334155; }
+  .badge.st.wait { background: var(--warn-bg); color: var(--warn); }
+  .badge.ws { font-size: 11.5px; padding: 2px 9px; }
+  .badge.ws::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 6px; }
+  .badge.ws.ok { background: var(--ok-bg); color: var(--ok); }
+  .badge.ws.wait { background: var(--warn-bg); color: var(--warn); }
+  .badge.ws.pp { background: var(--mv-bg); color: var(--mv); }
+  .badge.ws.none { background: #eef1f6; color: var(--muted); }
+
+  /* ---------- danh sách dạng thẻ (PDA) ---------- */
+  .row { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; margin-bottom: 6px; }
+  .row .l1 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-weight: 700; font-size: 15px; word-break: break-all; }
+  .row .arrow { color: var(--muted); font-weight: 400; }
+  .row .loc { color: var(--pri); }
+  .row .old { color: var(--muted); text-decoration: line-through; font-weight: 600; }
+  .row .l2 { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .empty { text-align: center; color: var(--muted); padding: 28px 8px; }
   .empty.err { color: var(--err); font-weight: 600; }
 
-  .filters { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
-  .chip { height: 36px; padding: 0 12px; border-radius: 18px; border: 2px solid var(--line); background: #fff; font-weight: 700; font-size: 14px; cursor: pointer; }
-  .chip.on { background: var(--pri); border-color: var(--pri); color: #fff; }
-  .chk { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; }
-  .chk input { width: 20px; height: 20px; }
-  .search { display: flex; gap: 8px; }
-  .search .inp { height: 48px; font-size: 17px; }
-  .search .btn { height: 48px; background: var(--pri); color: #fff; }
+  /* ---------- màn scan (ĐỊNH VỊ / CHUYỂN) – ô lớn cho PDA ---------- */
+  .scan-card { padding: 18px; }
+  .card.in { border-top: 4px solid var(--pri); }
+  .card.move { border-top: 4px solid var(--mv); }
+  .card-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; margin-bottom: 12px; }
+  .card.in .card-title svg { color: var(--pri); } .card.move .card-title svg { color: var(--mv); }
+  .field { margin-bottom: 12px; }
+  .field .lbl-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+  .field .lbl-row label { font-size: 13px; font-weight: 600; color: #475569; display: flex; align-items: center; }
+  .step { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+    background: #cbd5e1; color: #fff; font-size: 12px; font-weight: 700; margin-right: 8px; }
+  .field.active .step { background: var(--pri); }
+  .field.done .step { background: var(--ok); }
+  .field .inp { height: 56px; font-size: 22px; font-weight: 700; letter-spacing: .5px; border-width: 2px; border-radius: 10px;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+  .field .inp::placeholder { font-family: "Segoe UI", system-ui, sans-serif; font-weight: 500; font-size: 17px; letter-spacing: 0; color: #9aa7b8; }
+  .field.active .inp { border-color: var(--pri); background: var(--pri-bg); }
+  .field .inp.staff { font-size: 17px; font-weight: 600; letter-spacing: 0; font-family: "Segoe UI", system-ui, sans-serif; height: 48px; }
+  .cur-loc { margin: -2px 0 12px; padding: 10px 12px; border-radius: 10px; background: var(--mv-bg); font-size: 14px; border: 1px solid #e0d4f5; }
+  .cur-loc b { font-size: 20px; color: var(--mv); font-family: ui-monospace, Consolas, monospace; }
+  .cur-loc.err { background: var(--err-bg); color: var(--err); font-weight: 600; border-color: #f5c6c6; }
+  .cur-loc.wait { color: var(--muted); }
+  .actions { display: flex; gap: 8px; margin-top: 6px; }
+  .actions .btn { flex: 1; }
+  .scan-card .actions .btn { height: 54px; font-size: 17px; font-weight: 700; letter-spacing: .5px; }
+  .btn-light { flex: 0 0 auto !important; }
 
-  /* ---------- user ---------- */
-  .urow { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .result { margin-top: 12px; border-radius: 10px; padding: 12px 14px; border: 1px solid; border-left-width: 5px; background: #fff; }
+  .result.ok { background: var(--ok-bg); border-color: #b7e2c5; border-left-color: var(--ok); }
+  .result.warn { background: var(--warn-bg); border-color: #f1dd9f; border-left-color: #e0a100; }
+  .result.err { background: var(--err-bg); border-color: #f5c6c6; border-left-color: var(--err); }
+  .result .r-title { font-weight: 700; font-size: 13px; letter-spacing: .3px; }
+  .result.ok .r-title { color: var(--ok); } .result.warn .r-title { color: var(--warn); } .result.err .r-title { color: var(--err); }
+  .result .r-main { font-size: 22px; font-weight: 700; margin: 4px 0; word-break: break-all; font-family: ui-monospace, Consolas, monospace; }
+  .result .r-sub { font-size: 13px; color: var(--muted); }
+  .result .r-note { font-size: 14px; font-weight: 600; margin-top: 4px; }
+  #in-recent, #mv-recent { margin-top: 0; }
+  main.tab:not(.wide) .sec-title { margin-top: 18px; text-transform: uppercase; font-size: 12px; letter-spacing: .4px; }
+
+  /* ---------- USER ---------- */
+  .urow { display: flex; align-items: center; gap: 12px; cursor: pointer; margin: 0; border-radius: 0; border: 0; border-bottom: 1px solid var(--line-2); padding: 11px 14px; }
+  .urow:last-child { border-bottom: 0; }
+  .urow:hover { background: #f6f8fb; }
   .urow .u-main { flex: 1; min-width: 0; }
-  .urow .u-name { font-weight: 800; font-size: 16px; }
-  .urow .u-sub { font-size: 13px; color: var(--muted); }
+  .urow .u-name { font-weight: 600; font-size: 14px; }
+  .urow .u-sub { font-size: 12.5px; color: var(--muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 2px; }
   .urow.inactive .u-name { color: var(--muted); }
-  .urow .chev { color: var(--muted); font-size: 22px; }
-  .btn-add { width: 100%; background: var(--pri); color: #fff; }
+  .urow .chev { color: #94a3b8; font-size: 20px; }
+  #user-list { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  #user-list .empty { padding: 28px; }
 
-  .sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
-  .sheet { background: var(--card); width: 100%; max-width: 520px; max-height: 92vh; overflow-y: auto;
-    border-radius: 16px 16px 0 0; padding: 16px 16px 20px; }
-  .sheet h2 { margin: 0 0 4px; font-size: 19px; }
-  .sheet .inp { height: 48px; font-size: 17px; }
-  .sheet .hint { font-size: 13px; color: var(--muted); margin-top: 4px; }
-  .sheet .actions { margin-top: 16px; }
-  .toggle { display: flex; gap: 6px; }
-  .toggle button { flex: 1; height: 44px; border-radius: 10px; border: 2px solid var(--line); background: #fff; font-weight: 700; cursor: pointer; }
+  .sheet-bg { position: fixed; inset: 0; background: rgba(15,23,42,.5); z-index: 20; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .sheet { background: var(--card); width: 100%; max-width: 480px; max-height: 92vh; overflow-y: auto; border-radius: 14px; padding: 20px 22px;
+    box-shadow: 0 20px 40px rgba(15,23,42,.25); }
+  @media (max-width: 767px) { .sheet-bg { align-items: flex-end; padding: 0; } .sheet { border-radius: 16px 16px 0 0; } }
+  .sheet h2 { margin: 0 0 4px; font-size: 18px; }
+  .sheet .hint { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+  .sheet .actions { margin-top: 18px; justify-content: flex-end; }
+  .sheet .actions .btn { flex: 0 0 auto; min-width: 110px; }
+  .toggle { display: flex; }
+  .toggle button { flex: 1; height: 38px; border: 1px solid #cfd6e0; background: #fff; font-weight: 600; cursor: pointer; }
+  .toggle button:first-child { border-radius: 8px 0 0 8px; } .toggle button:last-child { border-radius: 0 8px 8px 0; margin-left: -1px; }
   .toggle button.on.act { background: var(--ok); border-color: var(--ok); color: #fff; }
   .toggle button.on.lock { background: var(--err); border-color: var(--err); color: #fff; }
 
@@ -152,50 +292,19 @@
   .cam-actions { display: flex; justify-content: center; padding: 0 16px 24px; }
   .cam-actions button { height: 48px; padding: 0 22px; border-radius: 24px; border: 0; background: #fff; color: #000; font-weight: 700; cursor: pointer; }
 
-  /* ---------- log: thẻ trên PDA, bảng trên laptop ---------- */
-  .log-tools { display: flex; gap: 14px; }
-  .tbl-wrap { display: none; }
-  @media (min-width: 900px) {
-    main.wide { max-width: 1280px; }
-    main.wide .cards { display: none; }
-    main.wide .tbl-wrap { display: block; background: var(--card); border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow: auto; max-height: calc(100vh - 260px); }
-    .search { max-width: 640px; }
-  }
-  .tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
-  .tbl th { position: sticky; top: 0; background: #f5f7fa; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .3px;
-    color: var(--muted); padding: 10px 12px; border-bottom: 2px solid var(--line); white-space: nowrap; }
-  .tbl td { padding: 8px 12px; border-bottom: 1px solid #edf0f4; white-space: nowrap; }
-  .tbl tbody tr:hover { background: #f7f9fc; }
-  .tbl td.code { font-weight: 700; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
-  .tbl td.loc { color: var(--pri); }
-  .tbl td.num { color: var(--muted); text-align: right; }
-  .tbl td.muted { color: var(--muted); }
-  .tbl td.empty { text-align: center; color: var(--muted); padding: 28px; }
-  .tbl th.r, .tbl td.r { text-align: right; }
-  .tbl td.wrap { white-space: normal; min-width: 220px; max-width: 360px; }
-
-  /* ---------- WMS ---------- */
-  .wms-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
-  .wms-info { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 2px; }
-  .wms-info span { font-size: 13px; color: var(--muted); }
-  .btn-sync { background: var(--pri); color: #fff; height: 46px; font-size: 16px; }
-  #wms-err { margin: 0 0 8px; min-height: 0; }
-  .badge.st { background: #e3e8ee; color: var(--text); }
-  .badge.ws { font-size: 12px; padding: 3px 8px; white-space: nowrap; }
-
   /* ---------- PHIẾU: QR trên màn hình ---------- */
-  .pw-hint { text-transform: none; font-weight: 600; font-size: 13px; }
-  .pw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
-  .pw-card { background: var(--card); border-radius: 12px; padding: 10px 12px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
-  .pw-card.first { border-top: 4px solid var(--pri); }
-  .pw-card .pw-no { font-size: 12px; color: var(--muted); font-weight: 700; }
-  .pw-qrs { display: flex; gap: 12px; margin: 6px 0 8px; }
-  .pw-qr { flex: 1; text-align: center; }
-  .pw-qr .lbl2 { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .3px; }
-  .pw-qr svg { width: 100%; max-width: 150px; height: auto; display: block; margin: 4px auto; }
-  .pw-qr .code { font-family: ui-monospace, Consolas, monospace; font-weight: 800; font-size: 16px; word-break: break-all; }
+  .pw-hint { font-weight: 500; font-size: 12.5px; }
+  .pw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .pw-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px 12px; box-shadow: var(--shadow); }
+  .pw-card.first { border-top: 3px solid var(--pri); }
+  .pw-card .pw-no { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+  .pw-qrs { display: flex; gap: 12px; margin: 8px 0; }
+  .pw-qr { flex: 1; text-align: center; background: #fbfcfe; border: 1px solid var(--line-2); border-radius: 8px; padding: 6px; }
+  .pw-qr .lbl2 { font-size: 10.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+  .pw-qr svg { width: 100%; max-width: 140px; height: auto; display: block; margin: 4px auto; }
+  .pw-qr .code { font-family: ui-monospace, Consolas, monospace; font-weight: 700; font-size: 15px; word-break: break-all; }
   .pw-qr.loc .code { color: var(--pri); }
-  .pw-card .pw-goods { font-size: 13px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 6px; }
+  .pw-card .pw-goods { font-size: 12.5px; color: var(--muted); }
   .pw-card .pw-goods b { color: var(--text); }
 
   /* ---------- PHIẾU: bản in A4 ---------- */
@@ -222,198 +331,252 @@
   .ps-table .ps-chk { width: 18mm; text-align: center; }
   .ps-box { display: inline-block; width: 6mm; height: 6mm; border: 1.5px solid #000; }
   .ps-foot { margin-top: 6px; font-size: 8.5pt; }
-  .badge.ws.ok { background: var(--ok-bg); color: var(--ok); }
-  .badge.ws.wait { background: var(--warn-bg); color: var(--warn); }
-  .badge.ws.pp { background: var(--mv-bg); color: var(--mv); }
-  .badge.ws.none { background: #eceff3; color: var(--muted); }
-  .badge.st.wait { background: var(--warn-bg); color: var(--warn); }
 
   #boot { min-height: 100vh; display: grid; place-items: center; color: var(--muted); }
 </style>
 </head>
 <body>
 
+<!-- Bộ icon (dùng bằng <svg class="ic"><use href="#i-..."/></svg>) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+  <symbol id="i-move" viewBox="0 0 24 24"><path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5"/></symbol>
+  <symbol id="i-log" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" stroke-width="3"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 7.5 12 3 3 7.5 12 12l9-4.5z"/><path d="M3 7.5v9L12 21l9-4.5v-9M12 12v9"/></symbol>
+  <symbol id="i-print" viewBox="0 0 24 24"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M21.5 20a6.5 6.5 0 0 0-4-6"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 16l-4-4 4-4M6 12h11"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 12h10"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.9-3.5M4 4v4h4M4 13a8 8 0 0 0 14.9 3.5M20 20v-4h-4"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+</svg>
+
 <div id="boot">Đang tải…</div>
 
 <!-- ======================= ĐĂNG NHẬP ======================= -->
 <section id="view-login" class="hidden">
-  <form class="login-box" id="login-form" autocomplete="off">
-    <div class="brand">
-      <div class="brand-logo">PA</div>
-      <div><h1>Định vị PA</h1><p>DC Phú Thọ · Nhập hàng</p></div>
+  <div class="login-art">
+    <div class="la-brand"><div class="brand-logo">PA</div>Central Ops · WMS</div>
+    <div>
+      <h2>Hệ thống định vị pallet<br>DC Phú Thọ</h2>
+      <p>Định vị pallet nhập, chuyển vị trí lưu trữ, đối chiếu tồn kho theo Bin với WMS Supra và in phiếu định vị.</p>
     </div>
-    <label class="lbl" for="login-user">Tài khoản</label>
-    <input class="inp" id="login-user" autocapitalize="none" autocorrect="off" spellcheck="false" required>
-    <label class="lbl" for="login-pass">Mật khẩu</label>
-    <input class="inp" id="login-pass" type="password" required>
-    <button class="btn btn-pri" id="btn-login" type="submit">Đăng nhập</button>
-    <div class="msg-err" id="login-err"></div>
-  </form>
+    <div class="la-foot">Kho PTD · 1393 – WMP_AMBIENT_PHUTHO</div>
+  </div>
+  <div class="login-side">
+    <form class="login-box" id="login-form" autocomplete="off">
+      <h1>Đăng nhập</h1>
+      <p class="lb-sub">Dùng tài khoản được cấp để vào hệ thống</p>
+      <label class="lbl" for="login-user">Tài khoản</label>
+      <input class="inp" id="login-user" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+      <label class="lbl" for="login-pass">Mật khẩu</label>
+      <input class="inp" id="login-pass" type="password" required>
+      <button class="btn btn-pri" id="btn-login" type="submit">Đăng nhập</button>
+      <div class="msg-err" id="login-err"></div>
+    </form>
+  </div>
 </section>
 
 <!-- ======================= MÀN CHÍNH ======================= -->
 <section id="view-main" class="hidden">
-  <header>
-    <div class="hdr">
-      <div class="who"><b id="hdr-name"></b><span id="hdr-user"></span></div>
-      <button type="button" id="btn-device" title="Đổi chế độ quét">📟 PDA</button>
-      <button type="button" id="btn-logout">Đăng xuất</button>
-    </div>
-    <nav class="tabs">
-      <button type="button" data-tab="in" data-perm="scan">ĐỊNH VỊ</button>
-      <button type="button" data-tab="mv" data-perm="move">CHUYỂN</button>
-      <button type="button" data-tab="log" data-perm="log">LOG</button>
-      <button type="button" data-tab="wms" data-perm="wms">WMS</button>
-      <button type="button" data-tab="pw" data-perm="putaway">PHIẾU</button>
-      <button type="button" data-tab="users" data-perm="users">USER</button>
+  <aside class="sidebar">
+    <div class="sb-brand"><div class="brand-logo">PA</div><div><b>Định vị PA</b><span>CENTRAL OPS · WMS</span></div></div>
+    <nav class="sb-nav">
+      <div class="sb-group">Vận hành</div>
+      <button type="button" class="nav-btn" data-tab="in" data-perm="scan" data-crumb="Vận hành" data-title="Định vị pallet nhập"><svg class="ic"><use href="#i-pin"/></svg>Định vị pallet</button>
+      <button type="button" class="nav-btn" data-tab="mv" data-perm="move" data-crumb="Vận hành" data-title="Chuyển vị trí lưu trữ"><svg class="ic"><use href="#i-move"/></svg>Chuyển vị trí</button>
+      <div class="sb-group">Báo cáo &amp; WMS</div>
+      <button type="button" class="nav-btn" data-tab="log" data-perm="log" data-crumb="Báo cáo" data-title="Nhật ký thao tác"><svg class="ic"><use href="#i-log"/></svg>Nhật ký thao tác</button>
+      <button type="button" class="nav-btn" data-tab="wms" data-perm="wms" data-crumb="WMS Supra" data-title="Tồn kho theo Bin"><svg class="ic"><use href="#i-box"/></svg>Tồn kho theo Bin</button>
+      <button type="button" class="nav-btn" data-tab="pw" data-perm="putaway" data-crumb="WMS Supra" data-title="Phiếu định vị trên WMS"><svg class="ic"><use href="#i-print"/></svg>Phiếu định vị</button>
+      <div class="sb-group">Quản trị</div>
+      <button type="button" class="nav-btn" data-tab="users" data-perm="users" data-crumb="Quản trị" data-title="Người dùng &amp; phân quyền"><svg class="ic"><use href="#i-users"/></svg>Người dùng</button>
     </nav>
-  </header>
+    <div class="sb-foot">Kho PTD · DC Phú Thọ</div>
+  </aside>
 
-  <!-- ----- ĐỊNH VỊ (nhập) ----- -->
-  <main id="tab-in" class="tab hidden">
-    <div class="card in">
-      <div class="card-title">Định vị pallet nhập</div>
-      <div class="field">
-        <div class="lbl-row"><label for="in-staff"><span class="step">1</span>Nhân viên scan</label></div>
-        <input class="inp staff" id="in-staff" autocomplete="off" placeholder="Scan thẻ / nhập tên">
+  <div class="main-col">
+    <header class="topbar">
+      <div class="tb-title"><div class="crumb" id="page-crumb"></div><h1 id="page-title"></h1></div>
+      <span class="wh-chip"><i></i>PTD · DC Phú Thọ</span>
+      <button type="button" class="tb-btn" id="btn-device" title="Đổi chế độ quét: PDA (đầu scan) / Camera">📟 PDA</button>
+      <div class="tb-user">
+        <div class="avatar" id="hdr-avatar"></div>
+        <div class="who"><b id="hdr-name"></b><span id="hdr-user"></span></div>
+        <button type="button" class="tb-btn" id="btn-logout" title="Đăng xuất"><svg class="ic"><use href="#i-out"/></svg><span class="tb-hide-m">Đăng xuất</span></button>
       </div>
-      <div class="field">
-        <div class="lbl-row">
-          <label for="in-pa"><span class="step">2</span>Mã PA</label>
-          <button type="button" class="link-btn kbd-toggle">⌨ Gõ tay</button>
+    </header>
+
+    <!-- ----- ĐỊNH VỊ (nhập) ----- -->
+    <main id="tab-in" class="tab hidden">
+      <div class="card scan-card in">
+        <div class="card-title"><svg class="ic"><use href="#i-scan"/></svg>Scan định vị pallet nhập</div>
+        <div class="field">
+          <div class="lbl-row"><label for="in-staff"><span class="step">1</span>Nhân viên scan</label></div>
+          <input class="inp staff" id="in-staff" autocomplete="off" placeholder="Scan thẻ / nhập tên">
         </div>
-        <input class="inp scan" id="in-pa" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan mã PA" data-ph-pda="Scan mã PA" data-ph-cam="📷 Chạm để quét mã PA">
-      </div>
-      <div class="field">
-        <div class="lbl-row"><label for="in-loc"><span class="step">3</span>Mã vị trí lưu trữ</label></div>
-        <input class="inp scan" id="in-loc" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan mã vị trí" data-ph-pda="Scan mã vị trí" data-ph-cam="📷 Chạm để quét vị trí">
-      </div>
-      <div class="actions">
-        <button type="button" class="btn btn-light" id="in-clear">Xóa</button>
-        <button type="button" class="btn btn-save" id="in-save">LƯU</button>
-      </div>
-    </div>
-    <div id="in-result" class="hidden"></div>
-    <div class="sec-title"><span>Vừa định vị trên máy này</span><span id="in-count"></span></div>
-    <div id="in-recent"><div class="empty">Chưa có lượt nào</div></div>
-  </main>
-
-  <!-- ----- CHUYỂN VỊ TRÍ ----- -->
-  <main id="tab-mv" class="tab hidden">
-    <div class="card move">
-      <div class="card-title">Chuyển vị trí lưu trữ</div>
-      <div class="field">
-        <div class="lbl-row"><label for="mv-staff"><span class="step">1</span>Nhân viên scan</label></div>
-        <input class="inp staff" id="mv-staff" autocomplete="off" placeholder="Scan thẻ / nhập tên">
-      </div>
-      <div class="field">
-        <div class="lbl-row">
-          <label for="mv-pa"><span class="step">2</span>Mã PA cần chuyển</label>
-          <button type="button" class="link-btn kbd-toggle">⌨ Gõ tay</button>
+        <div class="field">
+          <div class="lbl-row">
+            <label for="in-pa"><span class="step">2</span>Mã PA</label>
+            <button type="button" class="link-btn kbd-toggle">⌨ Gõ tay</button>
+          </div>
+          <input class="inp scan" id="in-pa" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan mã PA" data-ph-pda="Scan mã PA" data-ph-cam="📷 Chạm để quét mã PA">
         </div>
-        <input class="inp scan" id="mv-pa" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan mã PA" data-ph-pda="Scan mã PA" data-ph-cam="📷 Chạm để quét mã PA">
+        <div class="field">
+          <div class="lbl-row"><label for="in-loc"><span class="step">3</span>Mã vị trí lưu trữ</label></div>
+          <input class="inp scan" id="in-loc" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan mã vị trí" data-ph-pda="Scan mã vị trí" data-ph-cam="📷 Chạm để quét vị trí">
+        </div>
+        <div class="actions">
+          <button type="button" class="btn btn-light" id="in-clear">Xóa</button>
+          <button type="button" class="btn btn-save" id="in-save">LƯU</button>
+        </div>
       </div>
-      <div class="cur-loc hidden" id="mv-cur"></div>
-      <div class="field">
-        <div class="lbl-row"><label for="mv-loc"><span class="step">3</span>Vị trí MỚI</label></div>
-        <input class="inp scan" id="mv-loc" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan vị trí mới" data-ph-pda="Scan vị trí mới" data-ph-cam="📷 Chạm để quét vị trí mới">
-      </div>
-      <div class="actions">
-        <button type="button" class="btn btn-light" id="mv-clear">Xóa</button>
-        <button type="button" class="btn btn-move" id="mv-save">CHUYỂN</button>
-      </div>
-    </div>
-    <div id="mv-result" class="hidden"></div>
-    <div class="sec-title"><span>Vừa chuyển trên máy này</span><span id="mv-count"></span></div>
-    <div id="mv-recent"><div class="empty">Chưa có lượt nào</div></div>
-  </main>
+      <div id="in-result" class="hidden"></div>
+      <div class="sec-title"><span>Vừa định vị trên máy này</span><span id="in-count"></span></div>
+      <div id="in-recent"><div class="empty">Chưa có lượt nào</div></div>
+    </main>
 
-  <!-- ----- LOG ----- -->
-  <main id="tab-log" class="tab wide hidden">
-    <form class="search" id="log-form">
-      <input class="inp" id="log-q" placeholder="Tìm mã PA / vị trí / nhân viên" autocomplete="off" autocapitalize="characters" spellcheck="false">
-      <button class="btn" type="submit">Tìm</button>
-    </form>
-    <div class="filters">
-      <button type="button" class="chip on" data-scope="today">Hôm nay</button>
-      <button type="button" class="chip" data-scope="all">Tất cả ngày</button>
-      <label class="chk"><input type="checkbox" id="log-mine"> Của tôi</label>
-    </div>
-    <div class="filters">
-      <button type="button" class="chip on" data-action="">Mọi thao tác</button>
-      <button type="button" class="chip" data-action="NHAP">Định vị</button>
-      <button type="button" class="chip" data-action="CHUYEN">Chuyển</button>
-    </div>
-    <div class="sec-title">
-      <span id="log-summary">&nbsp;</span>
-      <span class="log-tools">
-        <button type="button" class="link-btn" id="log-export">⬇ Xuất Excel</button>
-        <button type="button" class="link-btn" id="log-reload">↻ Tải lại</button>
-      </span>
-    </div>
-    <div id="log-list" class="cards"></div>
-    <div class="tbl-wrap"><table class="tbl" id="log-table">
-      <thead><tr>
-        <th>#</th><th>Thời gian</th><th>Thao tác</th><th>Mã PA</th><th>Vị trí cũ</th><th>Vị trí</th><th>Status WMS</th><th>Nhân viên scan</th><th>Tài khoản</th>
-      </tr></thead>
-      <tbody></tbody>
-    </table></div>
-  </main>
-
-  <!-- ----- WMS: tồn kho theo Bin ----- -->
-  <main id="tab-wms" class="tab wide hidden">
-    <div class="card wms-bar">
-      <div class="wms-info">
-        <b>Tồn kho theo Bin – WMS</b>
-        <span id="wms-meta">Đang tải…</span>
+    <!-- ----- CHUYỂN VỊ TRÍ ----- -->
+    <main id="tab-mv" class="tab hidden">
+      <div class="card scan-card move">
+        <div class="card-title"><svg class="ic"><use href="#i-move"/></svg>Chuyển vị trí lưu trữ</div>
+        <div class="field">
+          <div class="lbl-row"><label for="mv-staff"><span class="step">1</span>Nhân viên scan</label></div>
+          <input class="inp staff" id="mv-staff" autocomplete="off" placeholder="Scan thẻ / nhập tên">
+        </div>
+        <div class="field">
+          <div class="lbl-row">
+            <label for="mv-pa"><span class="step">2</span>Mã PA cần chuyển</label>
+            <button type="button" class="link-btn kbd-toggle">⌨ Gõ tay</button>
+          </div>
+          <input class="inp scan" id="mv-pa" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan mã PA" data-ph-pda="Scan mã PA" data-ph-cam="📷 Chạm để quét mã PA">
+        </div>
+        <div class="cur-loc hidden" id="mv-cur"></div>
+        <div class="field">
+          <div class="lbl-row"><label for="mv-loc"><span class="step">3</span>Vị trí MỚI</label></div>
+          <input class="inp scan" id="mv-loc" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan vị trí mới" data-ph-pda="Scan vị trí mới" data-ph-cam="📷 Chạm để quét vị trí mới">
+        </div>
+        <div class="actions">
+          <button type="button" class="btn btn-light" id="mv-clear">Xóa</button>
+          <button type="button" class="btn btn-move" id="mv-save">CHUYỂN</button>
+        </div>
       </div>
-      <button type="button" class="btn btn-sync" id="wms-sync">⟳ Lấy dữ liệu mới</button>
-    </div>
-    <div class="msg-err" id="wms-err"></div>
-    <form class="search" id="wms-form">
-      <input class="inp" id="wms-q" placeholder="Tìm PA / vị trí / SKU / tên hàng / PO" autocomplete="off" spellcheck="false">
-      <button class="btn" type="submit">Tìm</button>
-    </form>
-    <div class="filters" id="wms-statuses"></div>
-    <div class="sec-title">
-      <span id="wms-summary">&nbsp;</span>
-      <span class="log-tools"><button type="button" class="link-btn" id="wms-export">⬇ Xuất Excel</button></span>
-    </div>
-    <div id="wms-list" class="cards"></div>
-    <div class="tbl-wrap"><table class="tbl" id="wms-table">
-      <thead><tr>
-        <th>Mã VTLT</th><th>Mã PTLT</th><th>SKU</th><th>Tên sản phẩm</th><th class="r">Tồn Bin</th><th class="r">Chờ xuất</th>
-        <th>ĐVT</th><th>Mã PO</th><th>Ngày nhận</th><th>HSD</th><th>Tính chất LT</th><th>Loại LT</th>
-      </tr></thead>
-      <tbody></tbody>
-    </table></div>
-  </main>
+      <div id="mv-result" class="hidden"></div>
+      <div class="sec-title"><span>Vừa chuyển trên máy này</span><span id="mv-count"></span></div>
+      <div id="mv-recent"><div class="empty">Chưa có lượt nào</div></div>
+    </main>
 
-  <!-- ----- PHIẾU: định vị thực tế trên WMS ----- -->
-  <main id="tab-pw" class="tab wide hidden">
-    <div class="card wms-bar">
-      <div class="wms-info">
-        <b>Phiếu định vị trên WMS – PA chưa định vị</b>
-        <span id="pw-meta">Đang tải…</span>
+    <!-- ----- LOG ----- -->
+    <main id="tab-log" class="tab wide hidden">
+      <div class="kpis" id="log-kpis"></div>
+      <div class="toolbar">
+        <form class="search" id="log-form">
+          <input class="inp" id="log-q" placeholder="Tìm mã PA / vị trí / nhân viên" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <button class="btn" type="submit">Tìm</button>
+        </form>
+        <div class="filters">
+          <button type="button" class="chip on" data-scope="today">Hôm nay</button>
+          <button type="button" class="chip" data-scope="all">Tất cả ngày</button>
+        </div>
+        <div class="filters">
+          <button type="button" class="chip on" data-action="">Mọi thao tác</button>
+          <button type="button" class="chip" data-action="NHAP">Định vị</button>
+          <button type="button" class="chip" data-action="CHUYEN">Chuyển</button>
+        </div>
+        <label class="chk"><input type="checkbox" id="log-mine"> Chỉ của tôi</label>
       </div>
-      <button type="button" class="btn btn-light" id="pw-sync">⟳ Cập nhật từ WMS</button>
-      <button type="button" class="btn btn-sync" id="pw-print">🖨 In phiếu A4</button>
-    </div>
-    <div class="msg-err" id="pw-err"></div>
-    <form class="search" id="pw-form">
-      <input class="inp" id="pw-q" placeholder="Lọc theo vị trí / mã PA (VD: LT.06)" autocomplete="off" spellcheck="false">
-      <button class="btn" type="submit">Lọc</button>
-    </form>
-    <div class="sec-title"><span id="pw-summary">&nbsp;</span><span class="pw-hint">Scan QR trên màn hình hoặc in phiếu</span></div>
-    <div id="pw-list" class="pw-grid"></div>
-  </main>
+      <div class="sec-title">
+        <span id="log-summary">&nbsp;</span>
+        <span class="log-tools">
+          <button type="button" class="link-btn" id="log-export"><svg class="ic"><use href="#i-download"/></svg>Xuất Excel</button>
+          <button type="button" class="link-btn" id="log-reload"><svg class="ic"><use href="#i-refresh"/></svg>Tải lại</button>
+        </span>
+      </div>
+      <div id="log-list" class="cards"></div>
+      <div class="tbl-wrap"><table class="tbl" id="log-table">
+        <thead><tr>
+          <th>#</th><th>Thời gian</th><th>Thao tác</th><th>Mã PA</th><th>Vị trí cũ</th><th>Vị trí</th><th>Status WMS</th><th>Nhân viên scan</th><th>Tài khoản</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </main>
 
-  <!-- ----- USER (admin) ----- -->
-  <main id="tab-users" class="tab hidden">
-    <button type="button" class="btn btn-add" id="user-add">+ Tạo tài khoản</button>
-    <div class="sec-title"><span id="user-summary">&nbsp;</span><button type="button" class="link-btn" id="user-reload">↻ Tải lại</button></div>
-    <div id="user-list"></div>
-  </main>
+    <!-- ----- WMS: tồn kho theo Bin ----- -->
+    <main id="tab-wms" class="tab wide hidden">
+      <div class="wms-bar">
+        <div class="wms-info">
+          <b>Báo cáo tồn kho theo Bin · WMS Supra</b>
+          <span id="wms-meta">Đang tải…</span>
+        </div>
+        <button type="button" class="btn btn-sync" id="wms-sync">⟳ Lấy dữ liệu mới</button>
+      </div>
+      <div class="msg-err" id="wms-err"></div>
+      <div class="kpis" id="wms-kpis"></div>
+      <div class="toolbar">
+        <form class="search" id="wms-form">
+          <input class="inp" id="wms-q" placeholder="Tìm PA / vị trí / SKU / tên hàng / PO" autocomplete="off" spellcheck="false">
+          <button class="btn" type="submit">Tìm</button>
+        </form>
+        <div class="filters" id="wms-statuses"></div>
+      </div>
+      <div class="sec-title">
+        <span id="wms-summary">&nbsp;</span>
+        <span class="log-tools"><button type="button" class="link-btn" id="wms-export"><svg class="ic"><use href="#i-download"/></svg>Xuất Excel</button></span>
+      </div>
+      <div id="wms-list" class="cards"></div>
+      <div class="tbl-wrap"><table class="tbl" id="wms-table">
+        <thead><tr>
+          <th>Mã VTLT</th><th>Mã PTLT</th><th>SKU</th><th>Tên sản phẩm</th><th class="r">Tồn Bin</th><th class="r">Chờ xuất</th>
+          <th>ĐVT</th><th>Mã PO</th><th>Ngày nhận</th><th>HSD</th><th>Tính chất LT</th><th>Loại LT</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </main>
+
+    <!-- ----- PHIẾU: định vị thực tế trên WMS ----- -->
+    <main id="tab-pw" class="tab wide hidden">
+      <div class="wms-bar">
+        <div class="wms-info">
+          <b>PA đã scan trong app nhưng WMS còn "Chờ lưu trữ"</b>
+          <span id="pw-meta">Đang tải…</span>
+        </div>
+        <button type="button" class="btn btn-light" id="pw-sync">⟳ Cập nhật từ WMS</button>
+        <button type="button" class="btn btn-sync" id="pw-print">🖨 In phiếu A4</button>
+      </div>
+      <div class="msg-err" id="pw-err"></div>
+      <div class="kpis" id="pw-kpis"></div>
+      <div class="toolbar">
+        <form class="search" id="pw-form">
+          <input class="inp" id="pw-q" placeholder="Lọc theo vị trí / mã PA (VD: LT.06)" autocomplete="off" spellcheck="false">
+          <button class="btn" type="submit">Lọc</button>
+        </form>
+        <span class="pw-hint">Scan QR trên màn hình hoặc in phiếu A4 (sắp theo vị trí A→Z)</span>
+      </div>
+      <div class="sec-title"><span id="pw-summary">&nbsp;</span></div>
+      <div id="pw-list" class="pw-grid"></div>
+    </main>
+
+    <!-- ----- USER (admin) ----- -->
+    <main id="tab-users" class="tab hidden">
+      <div class="page-bar">
+        <div class="pb-info"><b>Tài khoản người dùng</b><span id="user-summary">&nbsp;</span></div>
+        <button type="button" class="btn btn-light" id="user-reload"><svg class="ic"><use href="#i-refresh"/></svg>Tải lại</button>
+        <button type="button" class="btn btn-add" id="user-add"><svg class="ic"><use href="#i-plus"/></svg>Tạo tài khoản</button>
+      </div>
+      <div id="user-list"></div>
+    </main>
+  </div>
+
+  <!-- Menu đáy (PDA / điện thoại) -->
+  <nav class="bottom-nav">
+    <button type="button" class="nav-btn" data-tab="in" data-perm="scan"><svg class="ic"><use href="#i-pin"/></svg>Định vị</button>
+    <button type="button" class="nav-btn" data-tab="mv" data-perm="move"><svg class="ic"><use href="#i-move"/></svg>Chuyển</button>
+    <button type="button" class="nav-btn" data-tab="log" data-perm="log"><svg class="ic"><use href="#i-log"/></svg>Log</button>
+    <button type="button" class="nav-btn" data-tab="wms" data-perm="wms"><svg class="ic"><use href="#i-box"/></svg>WMS</button>
+    <button type="button" class="nav-btn" data-tab="pw" data-perm="putaway"><svg class="ic"><use href="#i-print"/></svg>Phiếu</button>
+    <button type="button" class="nav-btn" data-tab="users" data-perm="users"><svg class="ic"><use href="#i-users"/></svg>User</button>
+  </nav>
 </section>
 
 <!-- ----- Form tạo / sửa user ----- -->
@@ -548,10 +711,17 @@
     $('view-main').classList.remove('hidden');
     $('hdr-name').textContent = u.full_name;
     $('hdr-user').textContent = '@' + u.username + ' · ' + u.role_label;
-    document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('hidden', !can(b.dataset.perm)));
+    $('hdr-avatar').textContent = initials(u.full_name);
+    document.querySelectorAll('.nav-btn').forEach((b) => b.classList.toggle('hidden', !can(b.dataset.perm)));
+    // ẩn tiêu đề nhóm menu nếu cả nhóm không có quyền
+    document.querySelectorAll('.sb-group').forEach((g) => {
+      let el = g.nextElementSibling, any = false;
+      while (el && !el.classList.contains('sb-group')) { if (!el.classList.contains('hidden')) any = true; el = el.nextElementSibling; }
+      g.classList.toggle('hidden', !any);
+    });
     const staff = store.get('pa.staff.' + u.username) || u.full_name;
     Object.values(FORMS).forEach((f) => f.reset(staff));
-    switchTab(document.querySelector('.tabs button:not(.hidden)').dataset.tab);
+    switchTab(document.querySelector('.sb-nav .nav-btn:not(.hidden)').dataset.tab);
   }
 
   function logout(msg) {
@@ -561,7 +731,12 @@
 
   function switchTab(name) {
     currentTab = name;
-    document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
+    document.querySelectorAll('.nav-btn').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
+    const nav = document.querySelector(`.sb-nav .nav-btn[data-tab="${name}"]`);
+    $('page-title').textContent = nav ? nav.dataset.title : '';
+    $('page-crumb').textContent = nav ? nav.dataset.crumb : '';
+    document.title = (nav ? nav.dataset.title + ' · ' : '') + 'Định vị PA';
+    window.scrollTo(0, 0);
     document.querySelectorAll('main.tab').forEach((m) => m.classList.toggle('hidden', m.id !== 'tab-' + name));
     if (FORMS[name]) FORMS[name].focusNext();
     else if (name === 'log') loadLogs();
@@ -595,7 +770,20 @@
   $('btn-logout').addEventListener('click', () => {
     if (confirm('Đăng xuất khỏi máy này?')) logout();
   });
-  document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+  document.querySelectorAll('.nav-btn').forEach((b) => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+  function initials(name) {
+    const w = String(name || '?').trim().split(/\s+/);
+    return ((w.length > 1 ? w[0][0] + w[w.length - 1][0] : w[0].slice(0, 2)) || '?').toUpperCase();
+  }
+
+  // Thẻ chỉ số (KPI) đầu trang
+  function renderKpis(el, items) {
+    el.innerHTML = items.map((k) => `<div class="kpi ${k.cls || ''}">
+      <div class="k-lbl">${esc(k.label)}</div><div class="k-val">${esc(k.value)}</div>${k.sub ? `<div class="k-sub">${esc(k.sub)}</div>` : ''}
+    </div>`).join('');
+  }
+  const nf = (n) => Number(n || 0).toLocaleString('vi-VN');
 
   function onAuthFail(e) {
     if (e instanceof AuthError) { beep(false); logout(e.message); return true; }
@@ -977,6 +1165,14 @@
       const shown = r.rows.length;
       $('log-summary').textContent = (r.total > shown ? `${r.total} dòng (hiện ${shown} mới nhất – xuất Excel để lấy đủ)` : `${r.total} dòng`)
         + (r.wms_synced_at ? ` · Status theo WMS lúc ${r.wms_synced_at}` : ' · Chưa có dữ liệu WMS');
+      const st = r.stats || {};
+      renderKpis($('log-kpis'), [
+        { label: logScope === 'today' ? 'Thao tác hôm nay' : 'Tổng thao tác', value: nf(st.n), sub: `Định vị ${nf(st.nhap)} · Chuyển ${nf(st.chuyen)}` },
+        { label: 'Đã định vị (WMS)', value: nf(st.dinh_vi), cls: 'ok', sub: 'Có thể lấy hàng' },
+        { label: 'Chưa định vị (WMS)', value: nf(st.chua), cls: 'warn', sub: 'Chờ lưu trữ' },
+        { label: 'Chờ PickPack', value: nf(st.pickpack), cls: 'mv', sub: 'Vị trí đầu hàng' },
+        { label: 'Không có trên WMS', value: nf(st.none), cls: 'muted', sub: r.wms_synced_at ? 'WMS lúc ' + r.wms_synced_at : 'Chưa có dữ liệu WMS' },
+      ]);
       $('log-list').innerHTML = shown ? r.rows.map((x) => rowHtml(x, true)).join('') : '<div class="empty">Không có dữ liệu</div>';
       logBody().innerHTML = shown ? r.rows.map(tableRowHtml).join('') : '<tr><td colspan="9" class="empty">Không có dữ liệu</td></tr>';
     } catch (e) {
@@ -1032,6 +1228,13 @@
     $('wms-err').textContent = st.last_error && !st.running ? 'Lần lấy gần nhất bị lỗi: ' + st.last_error : '';
     setWmsBusy(st.running, st.pending);
     const total = st.statuses.reduce((a, x) => a + x.n, 0);
+    const cnt = (name) => (st.statuses.find((x) => x.name === name) || { n: 0 }).n;
+    renderKpis($('wms-kpis'), [
+      { label: 'Tổng dòng tồn Bin', value: nf(total), sub: st.synced_at ? 'Cập nhật ' + st.synced_at : 'Chưa có dữ liệu' },
+      { label: 'Có thể lấy hàng', value: nf(cnt('Có thể lấy hàng')), cls: 'ok', sub: 'Đã định vị' },
+      { label: 'Chờ lưu trữ', value: nf(cnt('Chờ lưu trữ')), cls: 'warn', sub: 'Chưa định vị' },
+      { label: 'Vị trí đầu hàng', value: nf(cnt('Vị trí đầu hàng')), cls: 'mv', sub: 'Chờ PickPack' },
+    ]);
     const chips = [{ name: '', label: 'Tất cả', n: total }, ...st.statuses.map((x) => ({ name: x.name, label: x.name, n: x.n }))];
     $('wms-statuses').innerHTML = chips.map((c) =>
       `<button type="button" class="chip${c.name === wmsStatus ? ' on' : ''}" data-st="${esc(c.name)}">${esc(c.label)} (${c.n.toLocaleString('vi-VN')})</button>`).join('');
@@ -1196,6 +1399,11 @@
     $('pw-meta').textContent = (r.wms_synced_at ? `Theo dữ liệu WMS lúc ${r.wms_synced_at}` : 'Chưa có dữ liệu WMS – bấm Cập nhật từ WMS')
       + (r.not_scanned ? ` · ${r.not_scanned} PA chờ lưu trữ trên WMS chưa được scan định vị trong app` : '');
     $('pw-summary').textContent = `${n} PA chưa định vị · ${r.locations} vị trí`;
+    renderKpis($('pw-kpis'), [
+      { label: 'PA cần định vị trên WMS', value: nf(n), cls: 'warn', sub: 'Đã scan trong app, WMS còn chờ lưu trữ' },
+      { label: 'Số vị trí', value: nf(r.locations), sub: 'Sắp A→Z trên phiếu' },
+      { label: 'Chờ lưu trữ chưa scan', value: nf(r.not_scanned), cls: 'muted', sub: 'Chưa có vị trí trong app' },
+    ]);
     $('pw-print').disabled = !n;
     if (!n) { $('pw-list').innerHTML = '<div class="empty">🎉 Không còn PA nào chưa định vị</div>'; return; }
     let prev = null;

@@ -258,15 +258,26 @@ EXPORT_MAX = 100_000
 
 # Log kèm trạng thái của PA trên WMS (bản đồng bộ mới nhất trong wms_bin_stocks).
 # Mã PA nằm ở Mã PTLT (PA đã cất lên vị trí) hoặc Mã VTLT (PA đang chờ lưu trữ).
-LOG_SELECT = """
-select s.id, s.scanned_at, s.action, s.pa_code, s.location_code, s.staff_name, s.username, s.prev_location,
-       w.lt_status as wms_lt_status, w.wms_loc
+LOG_FROM = """
 from pallet_scans s
 left join lateral (
     select lt_status, case when ptlt_code is not null then vtlt_code end as wms_loc
     from wms_bin_stocks where coalesce(ptlt_code, vtlt_code) = s.pa_code limit 1
 ) w on true
 """
+LOG_SELECT = """
+select s.id, s.scanned_at, s.action, s.pa_code, s.location_code, s.staff_name, s.username, s.prev_location,
+       w.lt_status as wms_lt_status, w.wms_loc
+""" + LOG_FROM
+LOG_STATS = """
+select count(*) as n,
+       count(*) filter (where s.action = 'NHAP') as nhap,
+       count(*) filter (where s.action = 'CHUYEN') as chuyen,
+       count(*) filter (where w.lt_status = 'Có thể lấy hàng') as dinh_vi,
+       count(*) filter (where w.lt_status = 'Chờ lưu trữ') as chua,
+       count(*) filter (where w.lt_status = 'Vị trí đầu hàng') as pickpack,
+       count(*) filter (where w.lt_status is null) as none
+""" + LOG_FROM
 
 # Tính chất LT trên WMS → trạng thái định vị hiển thị trong LOG
 WMS_PA_STATUS = {
@@ -327,8 +338,8 @@ def list_logs(
 ):
     where_sql, params = log_filter(f.q, f.scope, f.action, f.mine, user)
     rows = db.fetch_all(f"{LOG_SELECT} {where_sql} order by s.scanned_at desc, s.id desc limit %s", params + [limit])
-    total = db.fetch_one(f"select count(*) as n from pallet_scans {where_sql}", params)["n"]
-    return {"rows": [log_out(r) for r in rows], "total": total, "wms_synced_at": last_wms_sync()}
+    stats = db.fetch_one(f"{LOG_STATS} {where_sql}", params)
+    return {"rows": [log_out(r) for r in rows], "total": stats["n"], "stats": stats, "wms_synced_at": last_wms_sync()}
 
 
 @app.get("/api/logs/export")
