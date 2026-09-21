@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0b5cad">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/static/manifest.webmanifest">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<title>Định vị PA</title>
+<style>
+  :root {
+    --bg: #eef1f5; --card: #fff; --text: #1b1f24; --muted: #5f6b7a; --line: #cfd6df;
+    --pri: #0b5cad; --pri-d: #084a8c; --pri-bg: #e7f0fb;
+    --mv: #6a3fb5; --mv-bg: #f1ebfb;
+    --ok: #1a7f37; --ok-bg: #e6f4ea; --err: #c62828; --err-bg: #fdecea; --warn: #8a5a00; --warn-bg: #fff4d6;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  button, input, select { font: inherit; color: inherit; }
+  .hidden { display: none !important; }
+
+  /* ---------- login ---------- */
+  #view-login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .login-box { width: 100%; max-width: 380px; background: var(--card); border-radius: 14px; padding: 24px 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .brand-logo { width: 44px; height: 44px; border-radius: 10px; background: var(--pri); color: #fff;
+    display: grid; place-items: center; font-weight: 800; font-size: 18px; }
+  .brand h1 { margin: 0; font-size: 21px; }
+  .brand p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+
+  label.lbl { display: block; font-size: 14px; font-weight: 600; color: var(--muted); margin: 12px 0 5px; }
+  .inp { width: 100%; height: 52px; padding: 0 14px; border: 2px solid var(--line); border-radius: 10px;
+    background: #fff; font-size: 18px; outline: none; }
+  .inp:focus { border-color: var(--pri); box-shadow: 0 0 0 3px var(--pri-bg); }
+  select.inp { padding: 0 10px; }
+  .btn { height: 52px; border: 0; border-radius: 10px; padding: 0 18px; font-weight: 700; font-size: 17px; cursor: pointer; }
+  .btn:disabled { opacity: .6; }
+  .btn-pri { background: var(--pri); color: #fff; width: 100%; margin-top: 18px; }
+  .btn-pri:active { background: var(--pri-d); }
+  .msg-err { color: var(--err); min-height: 22px; margin-top: 10px; font-weight: 600; }
+
+  /* ---------- main ---------- */
+  header { position: sticky; top: 0; z-index: 5; background: var(--pri); color: #fff; }
+  .hdr { display: flex; align-items: center; gap: 10px; padding: 8px 12px; }
+  .hdr .who { flex: 1; min-width: 0; }
+  .hdr .who b { display: block; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hdr .who span { font-size: 13px; opacity: .85; }
+  .hdr button { background: rgba(255,255,255,.18); color: #fff; border: 0; border-radius: 8px; height: 38px; padding: 0 12px; font-weight: 600; }
+  .tabs { display: flex; }
+  .tabs button { flex: 1; height: 46px; background: transparent; border: 0; color: rgba(255,255,255,.75);
+    font-weight: 700; font-size: 15px; border-bottom: 4px solid transparent; padding: 0 4px; }
+  .tabs button.on { color: #fff; border-bottom-color: #fff; }
+
+  main { padding: 12px; max-width: 640px; margin: 0 auto; }
+  .card { background: var(--card); border-radius: 12px; padding: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .card.move { border-top: 5px solid var(--mv); }
+  .card.in { border-top: 5px solid var(--pri); }
+  .card-title { font-weight: 800; font-size: 15px; margin-bottom: 8px; }
+  .card.move .card-title { color: var(--mv); } .card.in .card-title { color: var(--pri); }
+
+  .field { margin-bottom: 10px; }
+  .field .lbl-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .field .lbl-row label { font-size: 14px; font-weight: 700; color: var(--muted); }
+  .step { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+    background: var(--line); color: #fff; font-size: 13px; margin-right: 6px; }
+  .field.active .step { background: var(--pri); }
+  .field.done .step { background: var(--ok); }
+  .field .inp { height: 56px; font-size: 22px; font-weight: 700; letter-spacing: .5px; }
+  .field.active .inp { border-color: var(--pri); background: var(--pri-bg); }
+  .field .inp.staff { font-size: 18px; font-weight: 600; letter-spacing: 0; }
+  .link-btn { background: none; border: 0; color: var(--pri); font-weight: 700; font-size: 14px; padding: 4px 0; cursor: pointer; }
+
+  .cur-loc { margin: -2px 0 10px; padding: 8px 12px; border-radius: 10px; background: var(--mv-bg); font-size: 15px; }
+  .cur-loc b { font-size: 20px; color: var(--mv); }
+  .cur-loc.err { background: var(--err-bg); color: var(--err); font-weight: 600; }
+  .cur-loc.wait { color: var(--muted); }
+
+  .actions { display: flex; gap: 8px; margin-top: 4px; }
+  .actions .btn { flex: 1; }
+  .btn-save { background: var(--ok); color: #fff; }
+  .btn-move { background: var(--mv); color: #fff; }
+  .btn-light { background: #e3e8ee; color: var(--text); flex: 0 0 auto !important; }
+
+  .result { margin-top: 12px; border-radius: 12px; padding: 12px 14px; border: 2px solid; }
+  .result.ok { background: var(--ok-bg); border-color: var(--ok); }
+  .result.warn { background: var(--warn-bg); border-color: #e0a800; }
+  .result.err { background: var(--err-bg); border-color: var(--err); }
+  .result .r-title { font-weight: 800; font-size: 15px; }
+  .result.ok .r-title { color: var(--ok); } .result.warn .r-title { color: var(--warn); } .result.err .r-title { color: var(--err); }
+  .result .r-main { font-size: 22px; font-weight: 800; margin: 4px 0; word-break: break-all; }
+  .result .r-sub { font-size: 14px; color: var(--muted); }
+  .result .r-note { font-size: 15px; font-weight: 700; margin-top: 4px; }
+
+  .sec-title { display: flex; justify-content: space-between; align-items: baseline; margin: 16px 2px 6px;
+    font-size: 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .3px; }
+
+  .row { background: var(--card); border-radius: 10px; padding: 9px 12px; margin-bottom: 6px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+  .row .l1 { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-weight: 800; font-size: 17px; word-break: break-all; }
+  .row .arrow { color: var(--muted); font-weight: 400; }
+  .row .loc { color: var(--pri); }
+  .row .old { color: var(--muted); text-decoration: line-through; font-weight: 600; }
+  .row .l2 { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 6px; letter-spacing: .3px; vertical-align: 2px; }
+  .badge.in { background: var(--pri-bg); color: var(--pri); }
+  .badge.mv { background: var(--mv-bg); color: var(--mv); }
+  .badge.off { background: var(--err-bg); color: var(--err); }
+  .badge.role { background: #e3e8ee; color: var(--text); }
+  .empty { text-align: center; color: var(--muted); padding: 24px 8px; }
+  .empty.err { color: var(--err); font-weight: 600; }
+
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+  .chip { height: 36px; padding: 0 12px; border-radius: 18px; border: 2px solid var(--line); background: #fff; font-weight: 700; font-size: 14px; cursor: pointer; }
+  .chip.on { background: var(--pri); border-color: var(--pri); color: #fff; }
+  .chk { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; }
+  .chk input { width: 20px; height: 20px; }
+  .search { display: flex; gap: 8px; }
+  .search .inp { height: 48px; font-size: 17px; }
+  .search .btn { height: 48px; background: var(--pri); color: #fff; }
+
+  /* ---------- user ---------- */
+  .urow { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .urow .u-main { flex: 1; min-width: 0; }
+  .urow .u-name { font-weight: 800; font-size: 16px; }
+  .urow .u-sub { font-size: 13px; color: var(--muted); }
+  .urow.inactive .u-name { color: var(--muted); }
+  .urow .chev { color: var(--muted); font-size: 22px; }
+  .btn-add { width: 100%; background: var(--pri); color: #fff; }
+
+  .sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
+  .sheet { background: var(--card); width: 100%; max-width: 520px; max-height: 92vh; overflow-y: auto;
+    border-radius: 16px 16px 0 0; padding: 16px 16px 20px; }
+  .sheet h2 { margin: 0 0 4px; font-size: 19px; }
+  .sheet .inp { height: 48px; font-size: 17px; }
+  .sheet .hint { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .sheet .actions { margin-top: 16px; }
+  .toggle { display: flex; gap: 6px; }
+  .toggle button { flex: 1; height: 44px; border-radius: 10px; border: 2px solid var(--line); background: #fff; font-weight: 700; cursor: pointer; }
+  .toggle button.on.act { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .toggle button.on.lock { background: var(--err); border-color: var(--err); color: #fff; }
+
+  #boot { min-height: 100vh; display: grid; place-items: center; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div id="boot">Đang tải…</div>
+
+<!-- ======================= ĐĂNG NHẬP ======================= -->
+<section id="view-login" class="hidden">
+  <form class="login-box" id="login-form" autocomplete="off">
+    <div class="brand">
+      <div class="brand-logo">PA</div>
+      <div><h1>Định vị PA</h1><p>DC Phú Thọ · Nhập hàng</p></div>
+    </div>
+    <label class="lbl" for="login-user">Tài khoản</label>
+    <input class="inp" id="login-user" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+    <label class="lbl" for="login-pass">Mật khẩu</label>
+    <input class="inp" id="login-pass" type="password" required>
+    <button class="btn btn-pri" id="btn-login" type="submit">Đăng nhập</button>
+    <div class="msg-err" id="login-err"></div>
+  </form>
+</section>
+
+<!-- ======================= MÀN CHÍNH ======================= -->
+<section id="view-main" class="hidden">
+  <header>
+    <div class="hdr">
+      <div class="who"><b id="hdr-name"></b><span id="hdr-user"></span></div>
+      <button type="button" id="btn-logout">Đăng xuất</button>
+    </div>
+    <nav class="tabs">
+      <button type="button" data-tab="in" data-perm="scan">ĐỊNH VỊ</button>
+      <button type="button" data-tab="mv" data-perm="move">CHUYỂN</button>
+      <button type="button" data-tab="log" data-perm="log">LOG</button>
+      <button type="button" data-tab="users" data-perm="users">USER</button>
+    </nav>
+  </header>
+
+  <!-- ----- ĐỊNH VỊ (nhập) ----- -->
+  <main id="tab-in" class="tab hidden">
+    <div class="card in">
+      <div class="card-title">Định vị pallet nhập</div>
+      <div class="field">
+        <div class="lbl-row"><label for="in-staff"><span class="step">1</span>Nhân viên scan</label></div>
+        <input class="inp staff" id="in-staff" autocomplete="off" placeholder="Scan thẻ / nhập tên">
+      </div>
+      <div class="field">
+        <div class="lbl-row">
+          <label for="in-pa"><span class="step">2</span>Mã PA</label>
+          <button type="button" class="link-btn kbd-toggle">⌨ Gõ tay</button>
+        </div>
+        <input class="inp scan" id="in-pa" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan mã PA">
+      </div>
+      <div class="field">
+        <div class="lbl-row"><label for="in-loc"><span class="step">3</span>Mã vị trí lưu trữ</label></div>
+        <input class="inp scan" id="in-loc" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan mã vị trí">
+      </div>
+      <div class="actions">
+        <button type="button" class="btn btn-light" id="in-clear">Xóa</button>
+        <button type="button" class="btn btn-save" id="in-save">LƯU</button>
+      </div>
+    </div>
+    <div id="in-result" class="hidden"></div>
+    <div class="sec-title"><span>Vừa định vị trên máy này</span><span id="in-count"></span></div>
+    <div id="in-recent"><div class="empty">Chưa có lượt nào</div></div>
+  </main>
+
+  <!-- ----- CHUYỂN VỊ TRÍ ----- -->
+  <main id="tab-mv" class="tab hidden">
+    <div class="card move">
+      <div class="card-title">Chuyển vị trí lưu trữ</div>
+      <div class="field">
+        <div class="lbl-row"><label for="mv-staff"><span class="step">1</span>Nhân viên scan</label></div>
+        <input class="inp staff" id="mv-staff" autocomplete="off" placeholder="Scan thẻ / nhập tên">
+      </div>
+      <div class="field">
+        <div class="lbl-row">
+          <label for="mv-pa"><span class="step">2</span>Mã PA cần chuyển</label>
+          <button type="button" class="link-btn kbd-toggle">⌨ Gõ tay</button>
+        </div>
+        <input class="inp scan" id="mv-pa" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan mã PA">
+      </div>
+      <div class="cur-loc hidden" id="mv-cur"></div>
+      <div class="field">
+        <div class="lbl-row"><label for="mv-loc"><span class="step">3</span>Vị trí MỚI</label></div>
+        <input class="inp scan" id="mv-loc" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan vị trí mới">
+      </div>
+      <div class="actions">
+        <button type="button" class="btn btn-light" id="mv-clear">Xóa</button>
+        <button type="button" class="btn btn-move" id="mv-save">CHUYỂN</button>
+      </div>
+    </div>
+    <div id="mv-result" class="hidden"></div>
+    <div class="sec-title"><span>Vừa chuyển trên máy này</span><span id="mv-count"></span></div>
+    <div id="mv-recent"><div class="empty">Chưa có lượt nào</div></div>
+  </main>
+
+  <!-- ----- LOG ----- -->
+  <main id="tab-log" class="tab hidden">
+    <form class="search" id="log-form">
+      <input class="inp" id="log-q" placeholder="Tìm mã PA / vị trí / nhân viên" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <button class="btn" type="submit">Tìm</button>
+    </form>
+    <div class="filters">
+      <button type="button" class="chip on" data-scope="today">Hôm nay</button>
+      <button type="button" class="chip" data-scope="all">Tất cả ngày</button>
+      <label class="chk"><input type="checkbox" id="log-mine"> Của tôi</label>
+    </div>
+    <div class="filters">
+      <button type="button" class="chip on" data-action="">Mọi thao tác</button>
+      <button type="button" class="chip" data-action="NHAP">Định vị</button>
+      <button type="button" class="chip" data-action="CHUYEN">Chuyển</button>
+    </div>
+    <div class="sec-title"><span id="log-summary">&nbsp;</span><button type="button" class="link-btn" id="log-reload">↻ Tải lại</button></div>
+    <div id="log-list"></div>
+  </main>
+
+  <!-- ----- USER (admin) ----- -->
+  <main id="tab-users" class="tab hidden">
+    <button type="button" class="btn btn-add" id="user-add">+ Tạo tài khoản</button>
+    <div class="sec-title"><span id="user-summary">&nbsp;</span><button type="button" class="link-btn" id="user-reload">↻ Tải lại</button></div>
+    <div id="user-list"></div>
+  </main>
+</section>
+
+<!-- ----- Form tạo / sửa user ----- -->
+<div class="sheet-bg hidden" id="user-sheet">
+  <form class="sheet" id="user-form" autocomplete="off">
+    <h2 id="uf-title">Tạo tài khoản</h2>
+    <label class="lbl" for="uf-username">Username (tên đăng nhập)</label>
+    <input class="inp" id="uf-username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="32">
+    <label class="lbl" for="uf-name">Họ tên</label>
+    <input class="inp" id="uf-name" maxlength="100">
+    <label class="lbl" for="uf-role">Loại tài khoản</label>
+    <select class="inp" id="uf-role"></select>
+    <div class="hint" id="uf-role-hint"></div>
+    <div id="uf-status-box">
+      <label class="lbl">Trạng thái</label>
+      <div class="toggle">
+        <button type="button" data-active="1">Hoạt động</button>
+        <button type="button" data-active="0">Khóa</button>
+      </div>
+    </div>
+    <label class="lbl" for="uf-pass" id="uf-pass-lbl">Mật khẩu</label>
+    <input class="inp" id="uf-pass" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="72">
+    <div class="hint" id="uf-pass-hint"></div>
+    <div class="msg-err" id="uf-err"></div>
+    <div class="actions">
+      <button type="button" class="btn btn-light" id="uf-cancel">Hủy</button>
+      <button type="submit" class="btn btn-save" id="uf-save">Lưu</button>
+    </div>
+  </form>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+    del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+  };
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const norm = (s) => String(s || '').replace(/[\x00-\x20\x7f]/g, '').toUpperCase();
+
+  const ROLE_HINT = {
+    admin: 'Toàn quyền: định vị, chuyển, xem log, quản lý user',
+    chuyenvien: 'Định vị, chuyển vị trí và xem log',
+    nhanvien: 'Chỉ dùng màn scan (định vị, chuyển vị trí)',
+  };
+
+  let session = null;            // { token, user }
+  let manualKbd = false;
+  let currentTab = null;
+
+  // ---------------------------------------------------------------- API
+  class AuthError extends Error {}
+
+  async function api(path, { method = 'GET', body } = {}) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (session) headers.Authorization = 'Bearer ' + session.token;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    let res;
+    try {
+      res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined, signal: ctrl.signal });
+    } catch (e) {
+      throw new Error('Mất kết nối mạng – kiểm tra wifi rồi thử lại');
+    } finally {
+      clearTimeout(timer);
+    }
+    let data = null;
+    try { data = await res.json(); } catch (e) {}
+    if (res.status === 401) throw new AuthError('Phiên đăng nhập đã hết hạn');
+    if (!res.ok) {
+      const d = data && data.detail;
+      const err = new Error(typeof d === 'string' ? d : 'Lỗi máy chủ (' + res.status + ')');
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  }
+
+  // ---------------------------------------------------------------- âm báo
+  let actx = null;
+  function beep(ok) {
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      const play = (freq, start, dur) => {
+        const o = actx.createOscillator(), g = actx.createGain();
+        o.type = 'square'; o.frequency.value = freq; g.gain.value = 0.12;
+        o.connect(g); g.connect(actx.destination);
+        o.start(actx.currentTime + start); o.stop(actx.currentTime + start + dur);
+      };
+      if (ok) play(1900, 0, 0.1); else { play(320, 0, 0.22); play(320, 0.3, 0.22); }
+    } catch (e) {}
+    try { navigator.vibrate && navigator.vibrate(ok ? 60 : [200, 80, 200]); } catch (e) {}
+  }
+
+  // ---------------------------------------------------------------- views
+  const can = (perm) => !!(session && session.user && session.user.perms.includes(perm));
+
+  function showLogin(msg) {
+    session = null;
+    $('boot').classList.add('hidden');
+    $('view-main').classList.add('hidden');
+    $('user-sheet').classList.add('hidden');
+    $('view-login').classList.remove('hidden');
+    $('login-err').textContent = msg || '';
+    $('login-user').value = store.get('pa.lastUser') || '';
+    setTimeout(() => ($('login-user').value ? $('login-pass') : $('login-user')).focus(), 50);
+  }
+
+  function showMain() {
+    const u = session.user;
+    $('boot').classList.add('hidden');
+    $('view-login').classList.add('hidden');
+    $('view-main').classList.remove('hidden');
+    $('hdr-name').textContent = u.full_name;
+    $('hdr-user').textContent = '@' + u.username + ' · ' + u.role_label;
+    document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('hidden', !can(b.dataset.perm)));
+    const staff = store.get('pa.staff.' + u.username) || u.full_name;
+    Object.values(FORMS).forEach((f) => f.reset(staff));
+    switchTab(document.querySelector('.tabs button:not(.hidden)').dataset.tab);
+  }
+
+  function logout(msg) {
+    store.del('pa.token');
+    showLogin(msg);
+  }
+
+  function switchTab(name) {
+    currentTab = name;
+    document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
+    document.querySelectorAll('main.tab').forEach((m) => m.classList.toggle('hidden', m.id !== 'tab-' + name));
+    if (FORMS[name]) FORMS[name].focusNext();
+    else if (name === 'log') loadLogs();
+    else if (name === 'users') loadUsers();
+  }
+
+  // ---------------------------------------------------------------- login
+  $('login-form').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const u = $('login-user').value.trim(), p = $('login-pass').value;
+    if (!u || !p) { $('login-err').textContent = 'Nhập đủ tài khoản và mật khẩu'; return; }
+    const btn = $('btn-login');
+    btn.disabled = true; btn.textContent = 'Đang đăng nhập…'; $('login-err').textContent = '';
+    try {
+      const r = await api('/api/login', { method: 'POST', body: { username: u, password: p } });
+      session = { token: r.token, user: r.user };
+      store.set('pa.token', r.token);
+      store.set('pa.lastUser', r.user.username);
+      $('login-pass').value = '';
+      showMain();
+    } catch (e) {
+      $('login-err').textContent = e.message; beep(false);
+      $('login-pass').select();
+    } finally {
+      btn.disabled = false; btn.textContent = 'Đăng nhập';
+    }
+  });
+
+  $('btn-logout').addEventListener('click', () => {
+    if (confirm('Đăng xuất khỏi máy này?')) logout();
+  });
+  document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+  function onAuthFail(e) {
+    if (e instanceof AuthError) { beep(false); logout(e.message); return true; }
+    return false;
+  }
+
+  // ---------------------------------------------------------------- form scan dùng chung
+  function rowHtml(r, showUser) {
+    const isMove = r.action === 'CHUYEN';
+    const badge = isMove ? '<span class="badge mv">CHUYỂN</span>' : '<span class="badge in">ĐỊNH VỊ</span>';
+    const from = isMove && r.prev_loc ? `<span class="old">${esc(r.prev_loc)}</span><span class="arrow">→</span>` : '<span class="arrow">→</span>';
+    return `<div class="row">
+      <div class="l1">${badge}<span>${esc(r.pa)}</span>${from}<span class="loc">${esc(r.loc)}</span></div>
+      <div class="l2">${esc(r.time)} · ${esc(r.staff)}${showUser ? ' (@' + esc(r.user) + ')' : ''}</div>
+    </div>`;
+  }
+
+  function syncStaff(value, fromForm) {
+    if (session && value) store.set('pa.staff.' + session.user.username, value);
+    Object.values(FORMS).forEach((f) => { if (f !== fromForm && value) f.F.staff.value = value; });
+  }
+
+  function makeForm(prefix, { submit, lookupPa, render, saveLabel }) {
+    const F = { staff: $(prefix + '-staff'), pa: $(prefix + '-pa'), loc: $(prefix + '-loc') };
+    const ORDER = ['staff', 'pa', 'loc'];
+    const btn = $(prefix + '-save');
+    const resultBox = $(prefix + '-result');
+    const cur = $(prefix + '-cur');
+    const recent = [];
+    let busy = false;
+    let checkedPa = null;       // PA đã tra vị trí hiện tại thành công (màn chuyển)
+
+    const keyOf = (el) => ORDER.find((k) => F[k] === el);
+
+    function markSteps(activeKey) {
+      ORDER.forEach((k) => {
+        const box = F[k].closest('.field');
+        box.classList.toggle('active', k === activeKey);
+        box.classList.toggle('done', k !== activeKey && !!F[k].value.trim());
+      });
+    }
+    function focusField(el) {
+      el.focus();
+      try { el.select(); } catch (e) {}
+      markSteps(keyOf(el));
+    }
+    function focusNext() {
+      const k = ORDER.find((key) => !F[key].value.trim() || (key === 'pa' && lookupPa && checkedPa !== norm(F.pa.value)));
+      focusField(F[k || 'loc']);
+    }
+    function saveStaff() {
+      F.staff.value = F.staff.value.replace(/\s+/g, ' ').trim();
+      syncStaff(F.staff.value, form);
+    }
+    function showResult(kind, title, main, sub, note) {
+      resultBox.className = 'result ' + kind;
+      resultBox.innerHTML =
+        `<div class="r-title">${esc(title)}</div>` +
+        (main ? `<div class="r-main">${main}</div>` : '') +
+        (sub ? `<div class="r-sub">${esc(sub)}</div>` : '') +
+        (note ? `<div class="r-note">${esc(note)}</div>` : '');
+    }
+    function fail(msg, el) {
+      beep(false);
+      showResult('err', '✖ CHƯA LƯU', '', '', msg);
+      if (el) focusField(el);
+    }
+    function setCur(kind, html) {
+      if (!cur) return;
+      cur.className = 'cur-loc' + (kind ? ' ' + kind : '') + (html ? '' : ' hidden');
+      cur.innerHTML = html || '';
+    }
+    function renderRecent() {
+      $(prefix + '-count').textContent = recent.length ? recent.length + ' lượt' : '';
+      $(prefix + '-recent').innerHTML = recent.length
+        ? recent.map((r) => rowHtml(r, false)).join('')
+        : '<div class="empty">Chưa có lượt nào</div>';
+    }
+
+    // Màn chuyển: tra vị trí hiện tại của PA trước khi cho scan vị trí mới
+    async function checkPa() {
+      if (!lookupPa) return true;
+      const pa = norm(F.pa.value);
+      if (checkedPa === pa) return true;
+      setCur('wait', 'Đang tra vị trí của ' + esc(pa) + '…');
+      try {
+        const r = await lookupPa(pa);
+        if (norm(F.pa.value) !== pa) return false;   // PA đã bị đổi trong lúc chờ
+        checkedPa = pa;
+        setCur('', `Đang ở: <b>${esc(r.loc)}</b><br><small>từ ${esc(r.time)} · ${esc(r.staff)}</small>`);
+        return true;
+      } catch (e) {
+        if (onAuthFail(e)) return false;
+        setCur('', '');
+        fail(e.message, F.pa);
+        return false;
+      }
+    }
+
+    async function doSubmit() {
+      if (busy) return;
+      saveStaff();
+      const staff = F.staff.value, pa = norm(F.pa.value), loc = norm(F.loc.value);
+      if (!staff) return fail('Nhập hoặc scan tên nhân viên', F.staff);
+      if (!pa) return fail('Chưa scan mã PA', F.pa);
+      if (!loc) return fail('Chưa scan mã vị trí', F.loc);
+      if (pa === loc) return fail('Mã PA và mã vị trí giống nhau – scan lại vị trí', F.loc);
+
+      busy = true; btn.disabled = true; btn.textContent = 'ĐANG LƯU…';
+      try {
+        if (!(await checkPa())) return;
+        const r = await submit({ pa, loc, staff });
+        const view = render(r);
+        beep(view.kind !== 'err');
+        showResult(view.kind, view.title, view.main, view.sub, view.note);
+        if (r.id) { recent.unshift(r); if (recent.length > 20) recent.pop(); renderRecent(); }
+        F.pa.value = ''; F.loc.value = ''; checkedPa = null; setCur('', '');
+        focusField(F.pa);
+      } catch (e) {
+        if (onAuthFail(e)) return;
+        // PA sai trạng thái (đã có vị trí / chưa định vị) → scan PA khác; lỗi khác → scan lại vị trí
+        if (e.status === 409 || e.status === 404) { F.loc.value = ''; fail(e.message, F.pa); }
+        else fail(e.message, F.loc);
+      } finally {
+        busy = false; btn.disabled = false; btn.textContent = saveLabel;
+      }
+    }
+
+    Object.values(F).forEach((el) => {
+      el.addEventListener('focus', () => markSteps(keyOf(el)));
+      el.addEventListener('input', () => {
+        if (el !== F.staff) el.value = el.value.toUpperCase();
+        if (el === F.pa && checkedPa !== null) { checkedPa = null; setCur('', ''); }
+      });
+      el.addEventListener('keydown', async (ev) => {
+        const isEnter = ev.key === 'Enter' || ev.keyCode === 13;
+        const isTab = ev.key === 'Tab' || ev.keyCode === 9;
+        if (!isEnter && !isTab) return;
+        ev.preventDefault();
+        if (!el.value.trim()) { beep(false); return; }
+        if (el === F.staff) saveStaff();
+        if (el === F.pa && !(await checkPa())) return;
+        if (ORDER.every((k) => F[k].value.trim())) doSubmit();
+        else focusNext();
+      });
+    });
+    F.staff.addEventListener('change', saveStaff);
+
+    const tab = F.pa.closest('main');
+    tab.addEventListener('click', (ev) => {
+      if (!ev.target.closest('input, button, label, .row')) focusNext();
+    });
+    btn.addEventListener('click', doSubmit);
+    $(prefix + '-clear').addEventListener('click', () => {
+      F.pa.value = ''; F.loc.value = ''; checkedPa = null; setCur('', '');
+      resultBox.classList.add('hidden');
+      focusField(F.pa);
+    });
+
+    const form = {
+      F, focusNext,
+      reset(staff) {
+        F.staff.value = staff; F.pa.value = ''; F.loc.value = '';
+        checkedPa = null; setCur('', '');
+        recent.length = 0; renderRecent();
+        resultBox.classList.add('hidden');
+      },
+    };
+    return form;
+  }
+
+  const FORMS = {
+    in: makeForm('in', {
+      saveLabel: 'LƯU',
+      submit: (b) => api('/api/scans', { method: 'POST', body: b }),
+      render: (r) => {
+        const main = `${esc(r.pa)} <span class="arrow">→</span> ${esc(r.loc)}`;
+        const count = `Vị trí ${r.loc} hiện có ${r.loc_count} PA`;
+        if (r.status === 'same') return { kind: 'warn', title: 'PA ĐÃ Ở VỊ TRÍ NÀY – KHÔNG GHI THÊM', main, note: count };
+        return { kind: 'ok', title: '✔ ĐÃ ĐỊNH VỊ', main, sub: `${r.time} · ${r.staff}`, note: count };
+      },
+    }),
+    mv: makeForm('mv', {
+      saveLabel: 'CHUYỂN',
+      lookupPa: (pa) => api('/api/pallets/' + encodeURIComponent(pa)),
+      submit: (b) => api('/api/moves', { method: 'POST', body: b }),
+      render: (r) => ({
+        kind: 'ok',
+        title: '✔ ĐÃ CHUYỂN VỊ TRÍ',
+        main: `${esc(r.pa)}: <span class="arrow">${esc(r.prev_loc)} →</span> ${esc(r.loc)}`,
+        sub: `${r.time} · ${r.staff}`,
+        note: `Vị trí ${r.loc} hiện có ${r.loc_count} PA`,
+      }),
+    }),
+  };
+
+  function setKbd(on) {
+    manualKbd = on;
+    document.querySelectorAll('input.scan').forEach((el) => el.setAttribute('inputmode', on ? 'text' : 'none'));
+    document.querySelectorAll('.kbd-toggle').forEach((b) => { b.textContent = on ? '▦ Chế độ scan' : '⌨ Gõ tay'; });
+    const el = document.activeElement;
+    if (el && el.classList.contains('scan')) { el.blur(); setTimeout(() => el.focus(), 30); }
+  }
+  document.querySelectorAll('.kbd-toggle').forEach((b) => b.addEventListener('click', () => setKbd(!manualKbd)));
+
+  // ---------------------------------------------------------------- log
+  let logScope = 'today', logAction = '', logSeq = 0;
+
+  async function loadLogs() {
+    const seq = ++logSeq;
+    const params = new URLSearchParams({ q: $('log-q').value.trim(), scope: logScope, action: logAction, mine: $('log-mine').checked });
+    $('log-summary').textContent = 'Đang tải…';
+    try {
+      const r = await api('/api/logs?' + params);
+      if (seq !== logSeq) return;
+      const shown = r.rows.length;
+      $('log-summary').textContent = r.total > shown ? `${r.total} dòng (hiện ${shown} mới nhất)` : `${r.total} dòng`;
+      $('log-list').innerHTML = shown ? r.rows.map((x) => rowHtml(x, true)).join('') : '<div class="empty">Không có dữ liệu</div>';
+    } catch (e) {
+      if (seq !== logSeq || onAuthFail(e)) return;
+      $('log-summary').textContent = ' ';
+      $('log-list').innerHTML = `<div class="empty err">${esc(e.message)}</div>`;
+    }
+  }
+
+  $('log-form').addEventListener('submit', (ev) => { ev.preventDefault(); $('log-q').blur(); loadLogs(); });
+  $('log-mine').addEventListener('change', loadLogs);
+  $('log-reload').addEventListener('click', loadLogs);
+  function chipGroup(attr, set) {
+    const chips = document.querySelectorAll(`.chip[data-${attr}]`);
+    chips.forEach((c) => c.addEventListener('click', () => {
+      set(c.dataset[attr]);
+      chips.forEach((x) => x.classList.toggle('on', x === c));
+      loadLogs();
+    }));
+  }
+  chipGroup('scope', (v) => { logScope = v; });
+  chipGroup('action', (v) => { logAction = v; });
+
+  // ---------------------------------------------------------------- user (admin)
+  let users = [], roles = {}, editing = null, ufActive = true;
+
+  async function loadUsers() {
+    $('user-summary').textContent = 'Đang tải…';
+    try {
+      const r = await api('/api/users');
+      users = r.rows; roles = r.roles;
+      renderUsers();
+    } catch (e) {
+      if (onAuthFail(e)) return;
+      $('user-summary').textContent = ' ';
+      $('user-list').innerHTML = `<div class="empty err">${esc(e.message)}</div>`;
+    }
+  }
+
+  function renderUsers() {
+    const active = users.filter((u) => u.is_active).length;
+    $('user-summary').textContent = `${users.length} tài khoản · ${active} hoạt động`;
+    $('user-list').innerHTML = users.map((u) => `
+      <div class="row urow${u.is_active ? '' : ' inactive'}" data-id="${u.id}">
+        <div class="u-main">
+          <div class="u-name">${esc(u.full_name)}</div>
+          <div class="u-sub">@${esc(u.username)} · <span class="badge role">${esc(u.role_label)}</span>${u.is_active ? '' : ' <span class="badge off">ĐÃ KHÓA</span>'}</div>
+        </div>
+        <div class="chev">›</div>
+      </div>`).join('') || '<div class="empty">Chưa có tài khoản</div>';
+  }
+
+  $('user-list').addEventListener('click', (ev) => {
+    const row = ev.target.closest('.urow');
+    if (row) openUserForm(users.find((u) => u.id === Number(row.dataset.id)));
+  });
+  $('user-add').addEventListener('click', () => openUserForm(null));
+  $('user-reload').addEventListener('click', loadUsers);
+
+  function setUfActive(on) {
+    ufActive = on;
+    document.querySelectorAll('#uf-status-box .toggle button').forEach((b) => {
+      const isAct = b.dataset.active === '1';
+      b.className = (isAct === on ? 'on ' : '') + (isAct ? 'act' : 'lock');
+    });
+  }
+  document.querySelectorAll('#uf-status-box .toggle button').forEach((b) =>
+    b.addEventListener('click', () => setUfActive(b.dataset.active === '1')));
+
+  $('uf-role').addEventListener('change', () => { $('uf-role-hint').textContent = ROLE_HINT[$('uf-role').value] || ''; });
+
+  function openUserForm(u) {
+    editing = u;
+    const isSelf = u && u.id === session.user.id;
+    $('uf-title').textContent = u ? 'Sửa tài khoản' : 'Tạo tài khoản';
+    $('uf-username').value = u ? u.username : '';
+    $('uf-username').disabled = !!u;
+    $('uf-name').value = u ? u.full_name : '';
+    $('uf-role').innerHTML = Object.entries(roles).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
+    $('uf-role').value = u ? u.role : 'nhanvien';
+    $('uf-role').disabled = !!isSelf;
+    $('uf-role-hint').textContent = ROLE_HINT[$('uf-role').value] || '';
+    $('uf-status-box').classList.toggle('hidden', !u || isSelf);
+    setUfActive(u ? u.is_active : true);
+    $('uf-pass').value = '';
+    $('uf-pass-lbl').textContent = u ? 'Đặt lại mật khẩu' : 'Mật khẩu';
+    $('uf-pass-hint').textContent = u ? 'Để trống nếu không đổi. Đổi mật khẩu sẽ đăng xuất tài khoản này trên mọi máy.' : 'Tối thiểu 4 ký tự';
+    $('uf-err').textContent = '';
+    $('user-sheet').classList.remove('hidden');
+    setTimeout(() => (u ? $('uf-name') : $('uf-username')).focus(), 50);
+  }
+  function closeUserForm() { $('user-sheet').classList.add('hidden'); editing = null; }
+  $('uf-cancel').addEventListener('click', closeUserForm);
+  $('user-sheet').addEventListener('click', (ev) => { if (ev.target.id === 'user-sheet') closeUserForm(); });
+
+  $('user-form').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const btn = $('uf-save');
+    const name = $('uf-name').value.trim(), role = $('uf-role').value, pw = $('uf-pass').value;
+    let req;
+    if (!editing) {
+      const username = $('uf-username').value.trim();
+      if (!username || !name || !pw) { $('uf-err').textContent = 'Nhập đủ username, họ tên và mật khẩu'; return; }
+      req = api('/api/users', { method: 'POST', body: { username, full_name: name, role, password: pw } });
+    } else {
+      const body = {};
+      if (name !== editing.full_name) body.full_name = name;
+      if (role !== editing.role) body.role = role;
+      if (ufActive !== editing.is_active) body.is_active = ufActive;
+      if (pw) body.password = pw;
+      if (!Object.keys(body).length) { closeUserForm(); return; }
+      req = api('/api/users/' + editing.id, { method: 'PATCH', body });
+    }
+    btn.disabled = true; $('uf-err').textContent = '';
+    try {
+      const saved = await req;
+      closeUserForm();
+      await loadUsers();
+      if (saved.id === session.user.id) {   // tự sửa tên mình → cập nhật header
+        session.user.full_name = saved.full_name;
+        $('hdr-name').textContent = saved.full_name;
+      }
+    } catch (e) {
+      if (onAuthFail(e)) return;
+      $('uf-err').textContent = e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // ---------------------------------------------------------------- khởi động
+  (async () => {
+    const token = store.get('pa.token');
+    if (!token) return showLogin();
+    session = { token, user: null };
+    try {
+      session.user = await api('/api/me');
+      showMain();
+    } catch (e) {
+      if (e instanceof AuthError) logout(e.message);
+      else showLogin(e.message);
+    }
+  })();
+})();
+</script>
+</body>
+</html>

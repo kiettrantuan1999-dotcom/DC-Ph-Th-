@@ -1,0 +1,12 @@
+{
+  "name": "Định vị PA – DC Phú Thọ",
+  "short_name": "Định vị PA",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eef1f5",
+  "theme_color": "#0b5cad",
+  "icons": [
+    { "src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

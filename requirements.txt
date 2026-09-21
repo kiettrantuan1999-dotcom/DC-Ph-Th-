@@ -1,0 +1,7 @@
+fastapi==0.115.*
+uvicorn[standard]==0.34.*
+psycopg[binary]==3.2.*
+psycopg-pool==3.2.*
+bcrypt==4.3.*
+itsdangerous==2.2.*
+tzdata
