@@ -1,16 +1,18 @@
 """Máy đồng bộ WMS – chạy trên 1 máy tính Windows ở Việt Nam (WMS chặn server nước ngoài).
 
-Việc làm:
-  - Mỗi vài giây: báo "đang online" lên Supabase và nhận yêu cầu "Lấy dữ liệu mới" từ app.
-  - Chỉ gọi WMS khi có người bấm "Lấy dữ liệu mới" trên app.
-    (Muốn tự lấy định kỳ thì đặt WMS_AUTO_MINUTES=30 – mặc định 0 = tắt.)
+Chỉ dùng HTTPS (cổng 443) – không kết nối thẳng database, nên chạy được sau firewall công ty:
+  1. Mỗi vài giây hỏi app (APP_URL) "có việc không?" – đồng thời báo đang online.
+  2. Có việc → đọc session WMS từ Google Sheet, tải báo cáo tồn kho theo Bin từ WMS.
+  3. Gửi file Excel lên app; app lưu vào database.
 
 Cấu hình trong file .env cạnh file này:
-  DATABASE_URL=...                    (giống app)
-  GOOGLE_SERVICE_ACCOUNT_FILE=...     (file JSON service account đọc session WMS)
-  WMS_AUTO_MINUTES=0                  (0 = chỉ lấy khi bấm nút trên app)
+  APP_URL=https://dc-ph-th-production.up.railway.app
+  WMS_AGENT_TOKEN=...                   (mã máy đồng bộ – lấy từ người quản trị app)
+  GOOGLE_SERVICE_ACCOUNT_FILE=service-account.json
+  WMS_AUTO_MINUTES=0                    (0 = chỉ lấy khi bấm nút trên app)
 
-Chạy: python wms_agent.py      (hoặc run_wms_agent.bat để chạy nền, tự khởi động lại khi lỗi)
+Chạy: python wms_agent.py        (hoặc run_wms_agent.bat: chạy nền, tự khởi động lại khi lỗi)
+      python wms_agent.py --check  (kiểm tra kết nối rồi thoát)
 """
 import logging
 import os
@@ -20,10 +22,14 @@ import time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from app import config, db, wms, wms_sync
+import requests
 
-VERSION = "1.0"
+from app import wms  # nạp .env qua app.config
+
+VERSION = "2.0"
 POLL_SECONDS = 5
+APP_URL = os.environ.get("APP_URL", "").rstrip("/")
+TOKEN = os.environ.get("WMS_AGENT_TOKEN", "")
 AUTO_MINUTES = int(os.environ.get("WMS_AUTO_MINUTES", "0"))
 HOST = os.environ.get("WMS_AGENT_NAME") or socket.gethostname()
 
@@ -35,69 +41,102 @@ logging.basicConfig(
               logging.StreamHandler(sys.stdout)],
 )
 log = logging.getLogger("wms-agent")
+http = requests.Session()
+http.headers.update({"X-Agent-Token": TOKEN, "User-Agent": f"dinh-vi-pa-agent/{VERSION}"})
 
 
-def heartbeat() -> None:
-    db.execute(
-        """insert into wms_agent (host, last_seen, auto_minutes, version) values (%s, now(), %s, %s)
-           on conflict (host) do update set last_seen = now(), auto_minutes = excluded.auto_minutes,
-                                            version = excluded.version""",
-        (HOST, AUTO_MINUTES, VERSION),
-    )
+class AppError(Exception):
+    pass
 
 
-def claim_request() -> dict | None:
-    """Nhận 1 yêu cầu PENDING (khóa để 2 máy đồng bộ không làm trùng)."""
-    return db.fetch_one(
-        """update wms_sync_log set status = 'RUNNING', started_at = now()
-           where id = (select id from wms_sync_log where status = 'PENDING' order by id limit 1 for update skip locked)
-           returning id, username"""
-    )
-
-
-def auto_due() -> bool:
-    if AUTO_MINUTES <= 0:
-        return False
-    row = db.fetch_one(
-        "select extract(epoch from now() - max(started_at))::int as age from wms_sync_log where status <> 'PENDING'"
-    )
-    return row["age"] is None or row["age"] >= AUTO_MINUTES * 60
-
-
-def do_sync(log_id: int, who: str) -> None:
-    started = time.time()
+def call(method: str, path: str, timeout: int = 30, **kw) -> dict:
     try:
-        n = wms_sync.run(log_id)
-        log.info("Đồng bộ #%s (%s) xong: %s dòng, %.1fs", log_id, who, n, time.time() - started)
+        r = http.request(method, APP_URL + path, timeout=timeout, **kw)
+    except requests.RequestException as exc:
+        raise AppError(f"Không kết nối được app {APP_URL}: {type(exc).__name__}")
+    if r.status_code == 401:
+        raise AppError("App từ chối: sai WMS_AGENT_TOKEN trong file .env")
+    if r.status_code >= 400:
+        try:
+            detail = r.json().get("detail")
+        except ValueError:
+            detail = r.text[:200]
+        raise AppError(f"App trả lỗi HTTP {r.status_code}: {detail}")
+    return r.json()
+
+
+def poll() -> dict | None:
+    return call("POST", "/api/agent/poll", json={"host": HOST, "version": VERSION, "auto_minutes": AUTO_MINUTES})["job"]
+
+
+def do_job(job: dict) -> None:
+    started = time.time()
+    job_id = job["id"]
+    try:
+        content, file_name = wms.export_bin_stocks()
+    except Exception as exc:
+        msg = str(exc) if isinstance(exc, wms.WmsError) else f"Lỗi trên máy đồng bộ ({type(exc).__name__})"
+        log.warning("Việc #%s (%s) lỗi khi lấy WMS: %s", job_id, job["by"], msg)
+        if not isinstance(exc, wms.WmsError):
+            log.exception("Chi tiết lỗi")
+        call("POST", f"/api/agent/jobs/{job_id}/error", json={"message": msg})
+        return
+    res = call(
+        "POST", f"/api/agent/jobs/{job_id}/result", timeout=180, data=content,
+        headers={"Content-Type": "application/octet-stream", "X-File-Name": file_name},
+    )
+    log.info("Việc #%s (%s) xong: %s dòng, %.1fs", job_id, job["by"], res.get("rows"), time.time() - started)
+
+
+def check() -> bool:
+    ok = True
+    print(f"  Máy đồng bộ: {HOST}")
+    try:
+        call("POST", "/api/agent/ping", json={"host": HOST, "version": VERSION, "auto_minutes": AUTO_MINUTES})
+        print(f"  App {APP_URL}: OK")
+    except AppError as exc:
+        print(f"  App: LỖI – {exc}")
+        ok = False
+    try:
+        info = wms.session_info()
+        print(f"  Session WMS (Google Sheet {info['source']}): OK – tài khoản {info['usid']}, lưu lúc {info['captured_at']}")
     except wms.WmsError as exc:
-        log.warning("Đồng bộ #%s (%s) lỗi: %s", log_id, who, exc)
-    except Exception:
-        log.exception("Đồng bộ #%s (%s) lỗi không xác định", log_id, who)
+        print(f"  Session WMS: LỖI – {exc}")
+        ok = False
+    try:
+        r = requests.get(wms.API_BASE + "/", timeout=15)
+        print(f"  Kết nối WMS: OK (HTTP {r.status_code})")
+    except requests.RequestException as exc:
+        print(f"  Kết nối WMS: LỖI – {type(exc).__name__}")
+        ok = False
+    return ok
 
 
 def main() -> None:
-    config.validate()
-    db.open_pool()
-    if AUTO_MINUTES:
-        log.info("Máy đồng bộ WMS '%s' khởi động – tự lấy dữ liệu mỗi %s phút", HOST, AUTO_MINUTES)
-    else:
-        log.info("Máy đồng bộ WMS '%s' khởi động – chỉ lấy dữ liệu khi bấm nút trên app", HOST)
+    if not APP_URL or not TOKEN:
+        sys.exit("Thiếu APP_URL hoặc WMS_AGENT_TOKEN trong file .env")
+    if "--check" in sys.argv:
+        sys.exit(0 if check() else 1)
+    log.info("Máy đồng bộ WMS '%s' v%s khởi động – app %s – %s", HOST, VERSION, APP_URL,
+             f"tự lấy mỗi {AUTO_MINUTES} phút" if AUTO_MINUTES else "chỉ lấy khi bấm nút trên app")
+    errors = 0
     while True:
         try:
-            heartbeat()
-            wms_sync.expire_stale()
-            req = claim_request()
-            if req:
-                do_sync(req["id"], req["username"])
-            elif auto_due():
-                row = db.fetch_one(
-                    "insert into wms_sync_log (status, username) values ('RUNNING', %s) returning id",
-                    (f"auto:{HOST}",),
-                )
-                do_sync(row["id"], "tự động")
+            job = poll()
+            if errors:
+                log.info("Kết nối app trở lại bình thường")
+            errors = 0
+            if job:
+                do_job(job)
+                continue
+        except AppError as exc:
+            errors += 1
+            if errors in (1, 10) or errors % 100 == 0:
+                log.warning("%s (lần %s)", exc, errors)
+            time.sleep(min(60, POLL_SECONDS * errors))
         except Exception:
-            log.exception("Lỗi vòng lặp – thử lại sau %ss", POLL_SECONDS * 6)
-            time.sleep(POLL_SECONDS * 6)
+            log.exception("Lỗi không xác định – thử lại sau 30s")
+            time.sleep(30)
         time.sleep(POLL_SECONDS)
 
 

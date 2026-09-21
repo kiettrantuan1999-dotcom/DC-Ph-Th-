@@ -6,6 +6,7 @@ Luật nghiệp vụ:
   - ĐỊNH VỊ chỉ dành cho PA chưa có vị trí; đổi vị trí phải dùng CHUYỂN VT.
 """
 import csv
+import hmac
 import io
 import re
 import threading
@@ -15,6 +16,7 @@ from pathlib import Path
 
 import psycopg
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -392,6 +394,57 @@ def wms_sync_now(user: dict = Depends(require("wms"))):
     finally:
         _wms_sync_lock.release()
     return wms_status_data()
+
+
+# ---- API cho máy đồng bộ (chạy ở Việt Nam, chỉ cần HTTPS tới app – không cần quyền vào database)
+
+def require_agent(x_agent_token: str | None = Header(default=None)) -> None:
+    if not x_agent_token or not hmac.compare_digest(x_agent_token, wms_sync.agent_token()):
+        raise HTTPException(401, "Sai mã máy đồng bộ (AGENT_TOKEN)")
+
+
+class AgentPoll(BaseModel):
+    host: str = Field(max_length=100)
+    version: str = Field("", max_length=20)
+    auto_minutes: int = Field(0, ge=0, le=1440)
+
+
+@app.post("/api/agent/ping", include_in_schema=False)
+def agent_ping(body: AgentPoll, _: None = Depends(require_agent)):
+    """Kiểm tra kết nối lúc cài đặt – báo online nhưng không nhận việc."""
+    wms_sync.heartbeat(body.host, body.auto_minutes, body.version)
+    return {"ok": True}
+
+
+@app.post("/api/agent/poll", include_in_schema=False)
+def agent_poll(body: AgentPoll, _: None = Depends(require_agent)):
+    """Máy đồng bộ gọi mỗi vài giây: báo online + nhận việc (nếu có)."""
+    wms_sync.heartbeat(body.host, body.auto_minutes, body.version)
+    wms_sync.expire_stale()
+    job = wms_sync.claim(body.host, body.auto_minutes)
+    return {"job": {"id": job["id"], "by": job["username"]} if job else None}
+
+
+@app.post("/api/agent/jobs/{job_id}/result", include_in_schema=False)
+async def agent_result(job_id: int, request: Request, _: None = Depends(require_agent)):
+    """Máy đồng bộ gửi lên file Excel lấy từ WMS (body = nội dung file)."""
+    content = await request.body()
+    file_name = request.headers.get("x-file-name", "")[:200] or "REPORT_BIN_INVENTORY.xlsx"
+    try:
+        n = await run_in_threadpool(wms_sync.store, job_id, content, file_name)
+    except wms.WmsError as exc:
+        raise HTTPException(422, str(exc))
+    return {"ok": True, "rows": n}
+
+
+class AgentError(BaseModel):
+    message: str = Field(max_length=1000)
+
+
+@app.post("/api/agent/jobs/{job_id}/error", include_in_schema=False)
+def agent_error(job_id: int, body: AgentError, _: None = Depends(require_agent)):
+    wms_sync.fail(job_id, body.message)
+    return {"ok": True}
 
 
 def wms_filter(q: str, status: str) -> tuple[str, list]:

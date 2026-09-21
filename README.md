@@ -150,20 +150,20 @@ Tab **WMS** hiển thị báo cáo tồn kho theo Bin (`exportBinStocks`, kho PT
 
 ### Máy đồng bộ
 
-WMS **chặn server nước ngoài**, nên app trên Railway không gọi WMS trực tiếp được. Việc lấy dữ liệu do một **máy tính Windows ở Việt Nam** đảm nhận, chạy `wms_agent.py`:
+WMS **chặn server nước ngoài**, nên app trên Railway không gọi WMS trực tiếp được. Việc lấy dữ liệu do một **máy tính Windows ở Việt Nam** đảm nhận, chạy `wms_agent.py`. Máy đồng bộ chỉ dùng **HTTPS tới app** (cổng 443), nên chạy được sau firewall công ty và không cần mật khẩu database:
 
 - Máy đồng bộ báo trạng thái lên Supabase vài giây một lần. Tab WMS hiện 🟢 khi máy đang chạy, 🔴 khi máy đã tắt.
 - Khi ai đó bấm **⟳ Lấy dữ liệu mới** trên app, app tạo một yêu cầu. Máy đồng bộ nhận yêu cầu trong vòng 5 giây, lấy dữ liệu mất khoảng 20 giây, và app tự cập nhật khi xong.
 - Máy đồng bộ **chỉ gọi WMS khi có người bấm nút**. Nếu sau này muốn tự lấy định kỳ, đặt biến `WMS_AUTO_MINUTES=30` trong `.env` (tính bằng phút).
 
-**Cài máy đồng bộ:**
+**Cài máy đồng bộ:** dùng gói `dist/may-dong-bo-wms.zip`, trong đó có hướng dẫn `HUONG DAN.txt` và file `CAI DAT.bat` cài một lần bấm. Gói này có file `.env` gồm:
 
-1. Máy cần có Python 3.12 trở lên và thư mục project này (đã có sẵn nếu dùng OneDrive).
-2. Tạo file `.env` với các biến sau:
-   - `DATABASE_URL`, `SECRET_KEY`: giống app.
-   - `GOOGLE_SERVICE_ACCOUNT_FILE`: đường dẫn tới file JSON của service account.
-3. Chạy `run_wms_agent.bat`. Lần đầu, file này tự tạo môi trường Python và cài thư viện. Máy đồng bộ tự khởi động lại nếu bị lỗi hoặc mất mạng.
-4. Để máy đồng bộ tự chạy khi bật máy: nhấn `Win+R`, gõ `shell:startup`, rồi tạo shortcut tới `run_wms_agent.bat` trong thư mục vừa mở.
+- `APP_URL`: link app trên Railway.
+- `WMS_AGENT_TOKEN`: mã máy đồng bộ. Mặc định mã này được suy ra từ `SECRET_KEY` của app (hàm `wms_sync.agent_token()`), nên không cần cấu hình gì trên Railway.
+- `GOOGLE_SERVICE_ACCOUNT_FILE=service-account.json`
+- `WMS_AUTO_MINUTES=0`
+
+Nếu lúc cài báo *"sai WMS_AGENT_TOKEN"* (do `SECRET_KEY` trên Railway khác với `SECRET_KEY` trong file `.env` trên máy), vào Railway thêm biến `WMS_AGENT_TOKEN` với giá trị lấy từ file `.env` của gói cài đặt.
 
 Log của máy đồng bộ nằm trong file `wms_agent.log`.
 

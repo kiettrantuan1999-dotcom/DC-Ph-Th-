@@ -1,8 +1,9 @@
 """Đồng bộ báo cáo tồn kho theo Bin từ WMS vào bảng wms_bin_stocks.
 
-Dùng chung cho:
-  - app (chế độ "direct", khi server gọi được WMS – ví dụ chạy trên máy ở Việt Nam)
-  - máy đồng bộ wms_agent.py (chế độ "agent", khi app chạy trên Railway bị WMS chặn)
+  - Chế độ "direct": server tự gọi WMS (khi server ở Việt Nam).
+  - Chế độ "agent" (Railway bị WMS chặn): app chỉ tạo yêu cầu; máy đồng bộ wms_agent.py ở Việt Nam
+    nhận việc qua /api/agent/poll, lấy file từ WMS rồi gửi lên /api/agent/jobs/{id}/result.
+    Máy đồng bộ chỉ cần HTTPS tới app – không cần quyền vào database.
 """
 import logging
 import os
@@ -47,12 +48,14 @@ def _cell(value, col: str):
     return text or None
 
 
-def run(log_id: int) -> int:
-    """Gọi WMS, thay toàn bộ wms_bin_stocks, cập nhật dòng log. Trả về số dòng.
+def store(log_id: int, content: bytes, file_name: str) -> int:
+    """Đọc file Excel WMS, thay toàn bộ wms_bin_stocks, đánh dấu log OK. Trả về số dòng.
     Lỗi được ghi vào log (status ERROR) rồi ném lại."""
     try:
-        content, file_name = wms.export_bin_stocks()
-        header, data = wms.read_xlsx(content)
+        try:
+            header, data = wms.read_xlsx(content)
+        except Exception:
+            raise wms.WmsError("File nhận từ WMS không đọc được (không phải Excel?)")
         idx = {h: i for i, h in enumerate(header)}
         missing = [h for h, _ in COLUMNS if h not in idx]
         if missing:
@@ -70,15 +73,74 @@ def run(log_id: int) -> int:
             )
         return len(rows)
     except Exception as exc:
-        if isinstance(exc, wms.WmsError):
-            msg = str(exc)
-        else:
-            log.exception("Đồng bộ WMS lỗi")
-            msg = f"Lỗi khi xử lý dữ liệu WMS ({type(exc).__name__})"
-        db.execute(
-            "update wms_sync_log set finished_at = now(), status = 'ERROR', message = %s where id = %s", (msg, log_id)
-        )
+        fail(log_id, exc)
         raise
+
+
+def fail(log_id: int, exc) -> None:
+    if isinstance(exc, str):
+        msg = exc
+    elif isinstance(exc, wms.WmsError):
+        msg = str(exc)
+    else:
+        log.exception("Đồng bộ WMS lỗi")
+        msg = f"Lỗi khi xử lý dữ liệu WMS ({type(exc).__name__})"
+    db.execute(
+        "update wms_sync_log set finished_at = now(), status = 'ERROR', message = %s where id = %s", (msg[:500], log_id)
+    )
+
+
+def run(log_id: int) -> int:
+    """Chế độ direct: server tự gọi WMS rồi lưu."""
+    try:
+        content, file_name = wms.export_bin_stocks()
+    except Exception as exc:
+        fail(log_id, exc)
+        raise
+    return store(log_id, content, file_name)
+
+
+# ---------------------------------------------------------------- phía server cho máy đồng bộ
+
+def agent_token() -> str:
+    """Token máy đồng bộ dùng để gọi app. Mặc định suy ra từ SECRET_KEY (không cần cấu hình thêm)."""
+    import hashlib
+    import hmac
+
+    from . import config
+
+    return os.environ.get("WMS_AGENT_TOKEN") or hmac.new(
+        config.SECRET_KEY.encode(), b"wms-agent", hashlib.sha256
+    ).hexdigest()
+
+
+def heartbeat(host: str, auto_minutes: int, version: str) -> None:
+    db.execute(
+        """insert into wms_agent (host, last_seen, auto_minutes, version) values (%s, now(), %s, %s)
+           on conflict (host) do update set last_seen = now(), auto_minutes = excluded.auto_minutes,
+                                            version = excluded.version""",
+        (host, auto_minutes, version),
+    )
+
+
+def claim(host: str, auto_minutes: int) -> dict | None:
+    """Giao 1 việc cho máy đồng bộ: yêu cầu PENDING cũ nhất, hoặc lượt tự động nếu tới hạn."""
+    job = db.fetch_one(
+        """update wms_sync_log set status = 'RUNNING', started_at = now()
+           where id = (select id from wms_sync_log where status = 'PENDING' order by id limit 1 for update skip locked)
+           returning id, username"""
+    )
+    if job or auto_minutes <= 0:
+        return job
+    row = db.fetch_one(
+        "select extract(epoch from now() - max(started_at))::int as age from wms_sync_log where status <> 'PENDING'"
+    )
+    if row["age"] is None or row["age"] >= auto_minutes * 60:
+        return db.fetch_one(
+            "insert into wms_sync_log (status, username) values ('RUNNING', %s) returning id, username",
+            (f"auto:{host}",),
+        )
+    return None
 
 
 def expire_stale() -> None:
