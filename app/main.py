@@ -7,6 +7,7 @@ Luật nghiệp vụ:
 """
 import csv
 import io
+import logging
 import re
 import threading
 from contextlib import asynccontextmanager
@@ -22,6 +23,7 @@ from pydantic import BaseModel, Field
 from . import config, db, security, wms
 
 STATIC_DIR = Path(__file__).parent / "static"
+log = logging.getLogger("dinh-vi-pa")
 
 # Quyền theo loại tài khoản
 ROLES = {
@@ -405,7 +407,11 @@ def wms_sync(user: dict = Depends(require("wms"))):
                     (len(rows), file_name, log_id),
                 )
         except Exception as exc:
-            msg = str(exc) if isinstance(exc, wms.WmsError) else "Lỗi khi xử lý dữ liệu WMS"
+            if isinstance(exc, wms.WmsError):
+                msg = str(exc)
+            else:
+                log.exception("Đồng bộ WMS lỗi")
+                msg = f"Lỗi khi xử lý dữ liệu WMS ({type(exc).__name__}) – xem Deploy Logs trên Railway"
             db.execute(
                 "update wms_sync_log set finished_at = now(), status = 'ERROR', message = %s where id = %s", (msg, log_id)
             )

@@ -8,6 +8,7 @@ xuất bundle mới và dán link mới vào ô đó – app tự đọc lại.
 Service account (GOOGLE_SERVICE_ACCOUNT_JSON / GOOGLE_SERVICE_ACCOUNT_FILE) phải được
 share quyền Viewer trên Google Sheet VÀ trên file session trong Drive.
 """
+import base64
 import io
 import json
 import os
@@ -16,6 +17,7 @@ import threading
 import time
 from urllib.parse import quote
 
+import google.auth.exceptions
 import requests
 from google.auth.transport.requests import Request as GoogleRequest
 from google.oauth2 import service_account
@@ -42,16 +44,48 @@ class WmsError(Exception):
 
 # ---------------------------------------------------------------- Google (Sheet + Drive)
 
+def _service_account_info(raw: str) -> dict:
+    """Đọc JSON service account từ biến môi trường, chịu được các kiểu dán hay gặp:
+    bọc trong nháy, bị mã hóa base64, hoặc private_key có '\\n' dạng chữ."""
+    raw = raw.strip()
+    if len(raw) > 1 and raw[0] == raw[-1] and raw[0] in "'\"":
+        raw = raw[1:-1]
+    try:
+        info = json.loads(raw)
+    except ValueError:
+        try:
+            info = json.loads(base64.b64decode(raw).decode("utf-8"))
+        except Exception:
+            raise WmsError(
+                "Biến GOOGLE_SERVICE_ACCOUNT_JSON không phải JSON hợp lệ – mở file JSON của service account, "
+                "copy TOÀN BỘ nội dung (từ { đến }) và dán lại vào biến trên Railway"
+            )
+    if not isinstance(info, dict) or not info.get("private_key") or not info.get("client_email"):
+        raise WmsError("GOOGLE_SERVICE_ACCOUNT_JSON thiếu private_key / client_email – dán lại đủ nội dung file JSON")
+    if "\\n" in info["private_key"]:
+        info["private_key"] = info["private_key"].replace("\\n", "\n")
+    return info
+
+
 def _google_token() -> str:
     raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
     path = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE", "").strip()
-    if raw:
-        creds = service_account.Credentials.from_service_account_info(json.loads(raw), scopes=GOOGLE_SCOPES)
-    elif path:
-        creds = service_account.Credentials.from_service_account_file(path, scopes=GOOGLE_SCOPES)
-    else:
-        raise WmsError("Chưa cấu hình service account Google (GOOGLE_SERVICE_ACCOUNT_JSON)")
-    creds.refresh(GoogleRequest())
+    try:
+        if raw:
+            creds = service_account.Credentials.from_service_account_info(
+                _service_account_info(raw), scopes=GOOGLE_SCOPES
+            )
+        elif path:
+            creds = service_account.Credentials.from_service_account_file(path, scopes=GOOGLE_SCOPES)
+        else:
+            raise WmsError("Chưa cấu hình service account Google (GOOGLE_SERVICE_ACCOUNT_JSON)")
+        creds.refresh(GoogleRequest())
+    except WmsError:
+        raise
+    except google.auth.exceptions.GoogleAuthError as exc:
+        raise WmsError(f"Service account không đăng nhập được Google: {exc}")
+    except ValueError as exc:  # private_key sai định dạng
+        raise WmsError(f"Service account không hợp lệ (private_key sai định dạng): {exc}")
     return creds.token
 
 
@@ -65,12 +99,19 @@ def _drive_file_id(value: str) -> str:
     raise WmsError(f"Ô {SHEET_RANGE} không phải link Google Drive hợp lệ")
 
 
+def _http_get(url: str, what: str, **kw) -> requests.Response:
+    try:
+        return requests.get(url, **kw)
+    except requests.RequestException as exc:
+        raise WmsError(f"Không kết nối được {what}: {type(exc).__name__}")
+
+
 def _read_session_bundle() -> dict:
     token = _google_token()
     auth = {"Authorization": f"Bearer {token}"}
-    r = requests.get(
+    r = _http_get(
         f"https://sheets.googleapis.com/v4/spreadsheets/{SHEET_ID}/values/{quote(SHEET_RANGE)}",
-        headers=auth, timeout=30,
+        "Google Sheets", headers=auth, timeout=30,
     )
     if r.status_code != 200:
         raise WmsError(f"Không đọc được Google Sheet (HTTP {r.status_code}) – kiểm tra đã share Sheet cho service account")
@@ -79,9 +120,9 @@ def _read_session_bundle() -> dict:
     if not link:
         raise WmsError(f"Ô {SHEET_RANGE} đang trống – dán link Drive của file session vào đó")
 
-    r = requests.get(
+    r = _http_get(
         f"https://www.googleapis.com/drive/v3/files/{_drive_file_id(link)}",
-        params={"alt": "media", "supportsAllDrives": "true"}, headers=auth, timeout=60,
+        "Google Drive", params={"alt": "media", "supportsAllDrives": "true"}, headers=auth, timeout=60,
     )
     if r.status_code != 200:
         raise WmsError(f"Không tải được file session trên Drive (HTTP {r.status_code}) – kiểm tra đã share file cho service account")
@@ -140,7 +181,7 @@ def wms_get(path: str, params: dict) -> requests.Response:
             "warehouse": WH_CODE,
             **s,
         }
-        r = requests.get(API_BASE + path, params=params, headers=headers, timeout=120)
+        r = _http_get(API_BASE + path, "WMS", params=params, headers=headers, timeout=120)
         if r.status_code in (401, 403) and attempt == 0:
             continue
         if r.status_code in (401, 403):
