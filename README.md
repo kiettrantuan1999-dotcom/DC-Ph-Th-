@@ -154,7 +154,7 @@ WMS **chặn server nước ngoài**, nên app trên Railway không gọi WMS tr
 
 - Máy đồng bộ báo trạng thái lên Supabase vài giây một lần. Tab WMS hiện 🟢 khi máy đang chạy, 🔴 khi máy đã tắt.
 - Khi ai đó bấm **⟳ Lấy dữ liệu mới** trên app, app tạo một yêu cầu. Máy đồng bộ nhận yêu cầu trong vòng 5 giây, lấy dữ liệu mất khoảng 20 giây, và app tự cập nhật khi xong.
-- Máy đồng bộ tự lấy dữ liệu định kỳ, mặc định 30 phút một lần. Có thể đổi bằng biến `WMS_AUTO_MINUTES` trong `.env`, đặt `0` để tắt.
+- Máy đồng bộ **chỉ gọi WMS khi có người bấm nút**. Nếu sau này muốn tự lấy định kỳ, đặt biến `WMS_AUTO_MINUTES=30` trong `.env` (tính bằng phút).
 
 **Cài máy đồng bộ:**
 

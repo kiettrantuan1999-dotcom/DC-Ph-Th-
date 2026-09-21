@@ -2,12 +2,13 @@
 
 Việc làm:
   - Mỗi vài giây: báo "đang online" lên Supabase và nhận yêu cầu "Lấy dữ liệu mới" từ app.
-  - Tự lấy dữ liệu định kỳ (mặc định 30 phút / lần, đặt WMS_AUTO_MINUTES=0 để tắt).
+  - Chỉ gọi WMS khi có người bấm "Lấy dữ liệu mới" trên app.
+    (Muốn tự lấy định kỳ thì đặt WMS_AUTO_MINUTES=30 – mặc định 0 = tắt.)
 
 Cấu hình trong file .env cạnh file này:
   DATABASE_URL=...                    (giống app)
   GOOGLE_SERVICE_ACCOUNT_FILE=...     (file JSON service account đọc session WMS)
-  WMS_AUTO_MINUTES=30
+  WMS_AUTO_MINUTES=0                  (0 = chỉ lấy khi bấm nút trên app)
 
 Chạy: python wms_agent.py      (hoặc run_wms_agent.bat để chạy nền, tự khởi động lại khi lỗi)
 """
@@ -23,7 +24,7 @@ from app import config, db, wms, wms_sync
 
 VERSION = "1.0"
 POLL_SECONDS = 5
-AUTO_MINUTES = int(os.environ.get("WMS_AUTO_MINUTES", "30"))
+AUTO_MINUTES = int(os.environ.get("WMS_AUTO_MINUTES", "0"))
 HOST = os.environ.get("WMS_AGENT_NAME") or socket.gethostname()
 
 LOG_FILE = Path(__file__).with_name("wms_agent.log")
@@ -77,7 +78,10 @@ def do_sync(log_id: int, who: str) -> None:
 def main() -> None:
     config.validate()
     db.open_pool()
-    log.info("Máy đồng bộ WMS '%s' khởi động – tự lấy dữ liệu mỗi %s phút", HOST, AUTO_MINUTES or "(tắt)")
+    if AUTO_MINUTES:
+        log.info("Máy đồng bộ WMS '%s' khởi động – tự lấy dữ liệu mỗi %s phút", HOST, AUTO_MINUTES)
+    else:
+        log.info("Máy đồng bộ WMS '%s' khởi động – chỉ lấy dữ liệu khi bấm nút trên app", HOST)
     while True:
         try:
             heartbeat()
