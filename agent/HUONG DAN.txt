@@ -1,0 +1,54 @@
+MÁY ĐỒNG BỘ WMS – App Định vị PA, DC Phú Thọ
+===========================================
+
+Máy đồng bộ làm gì?
+  WMS Supra chặn server nước ngoài, nên app trên Railway không lấy dữ liệu WMS trực tiếp được.
+  Máy đồng bộ chỉ dùng kết nối web thông thường (HTTPS), nên chạy được cả trong mạng công ty.
+  Máy đồng bộ là một chương trình nhỏ chạy trên máy tính ở Việt Nam. Khi có người bấm
+  "Lấy dữ liệu mới" ở tab WMS trên app, máy đồng bộ sẽ lấy dữ liệu từ WMS rồi gửi lên app.
+
+Chọn máy nào?
+  - Máy Windows (Windows 10 hoặc 11), luôn bật trong giờ làm việc và có mạng.
+  - Máy không được tự ngủ:
+    Settings → System → Power → Screen and sleep → mục "When plugged in, put my device to sleep after" chọn Never.
+
+CÀI ĐẶT (khoảng 5 phút)
+  1. Chép cả thư mục "may-dong-bo-wms" này vào máy đó, ví dụ vào C:\may-dong-bo-wms
+     Nên chép vào ổ C, không để trên Desktop hay trong OneDrive.
+
+  2. Cài Python, nếu máy chưa có:
+     - Vào https://www.python.org/downloads/windows/ và tải bản Python 3.12 hoặc mới hơn.
+     - Khi cài, nhớ TÍCH ô "Add python.exe to PATH" rồi bấm Install Now.
+
+  3. Bấm đúp file "CAI DAT.bat". File này sẽ:
+     - Cài thư viện (lần đầu mất 1–2 phút).
+     - Kiểm tra kết nối Supabase, Google Sheet và session WMS.
+     - Cài để máy đồng bộ tự chạy mỗi khi bật máy.
+     - Chạy máy đồng bộ ngay.
+     Khi màn hình hiện "CAI DAT XONG" là xong.
+
+  4. Kiểm tra trên app: vào tab WMS, dòng trạng thái phải hiện
+     "Máy đồng bộ <tên máy>: 🟢 đang chạy". Bấm "Lấy dữ liệu mới" để thử.
+
+LƯU Ý
+  - Máy đồng bộ chạy trong một cửa sổ đen tên "May dong bo WMS", thu nhỏ ở thanh Taskbar.
+    KHÔNG đóng cửa sổ này. Lỡ đóng rồi thì chạy lại file run_wms_agent.bat.
+  - Chỉ cài máy đồng bộ trên MỘT máy.
+  - Nhật ký hoạt động nằm trong file wms_agent.log, ở ngay trong thư mục này.
+  - Khi app báo "Session WMS đã hết hạn": vào wms-supra.winmart.vn, xuất lại session bằng
+    extension Supra Session Capture, rồi dán link Drive mới vào Google Sheet, tab Config, ô B2.
+    Không cần làm gì trên máy đồng bộ.
+
+NẾU CÀI BÁO LỖI
+  - "App: LỖI – Không kết nối được app": máy chưa có mạng, hoặc mạng công ty chặn trang railway.app.
+  - "sai WMS_AGENT_TOKEN": báo người quản trị app thêm biến WMS_AGENT_TOKEN trên Railway,
+    với giá trị lấy từ file .env trong thư mục này.
+  - "Session WMS: LỖI": kiểm tra link ở ô B2 của Google Sheet, và kiểm tra file session đã được
+    share cho service account chưa.
+
+BẢO MẬT
+  Thư mục này có mã máy đồng bộ (file .env) và khóa Google (file service-account.json).
+  Không có mật khẩu database. Tuy vậy vẫn KHÔNG gửi thư mục này cho người ngoài.
+
+GỠ CÀI ĐẶT
+  Bấm đúp file "GO CAI DAT.bat".
