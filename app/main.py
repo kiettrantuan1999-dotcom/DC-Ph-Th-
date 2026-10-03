@@ -217,6 +217,60 @@ def create_scan(body: ScanIn, user: dict = Depends(require("scan"))):
         return {**scan_out(row), "status": "new", "loc_count": loc_count(conn, loc)}
 
 
+class BatchScanIn(BaseModel):
+    loc: str = Field(max_length=128)
+    staff: str = Field(max_length=100)
+    pas: list[str] = Field(min_length=1, max_length=300)
+
+
+@app.post("/api/scans/batch")
+def create_scans(body: BatchScanIn, user: dict = Depends(require("scan"))):
+    """ĐỊNH VỊ theo lô: 1 vị trí – nhiều PA. PA nào lỗi thì báo riêng, các PA còn lại vẫn lưu."""
+    loc = norm_code(body.loc)
+    staff = " ".join(body.staff.split())
+    if not staff:
+        raise HTTPException(400, "Chưa có tên nhân viên scan")
+    if not loc:
+        raise HTTPException(400, "Chưa scan mã vị trí")
+    if config.LOC_RE and not config.LOC_RE.fullmatch(loc):
+        raise HTTPException(400, f"Mã vị trí không đúng định dạng: {loc}")
+
+    pas, seen = [], set()
+    for raw in body.pas:
+        pa = norm_code(raw)
+        if pa and pa not in seen:
+            seen.add(pa)
+            pas.append(pa)
+    if not pas:
+        raise HTTPException(400, "Chưa scan mã PA nào")
+
+    saved, same, failed = [], [], []
+    with db.transaction() as conn:
+        for pa in pas:
+            if pa == loc:
+                failed.append({"pa": pa, "msg": "Trùng mã vị trí"})
+                continue
+            if config.PA_RE and not config.PA_RE.fullmatch(pa):
+                failed.append({"pa": pa, "msg": "Sai định dạng mã PA"})
+                continue
+            created = conn.execute(
+                """insert into pallet_locations (pa_code, location_code, staff_name, username)
+                   values (%s, %s, %s, %s) on conflict (pa_code) do nothing returning pa_code""",
+                (pa, loc, staff, user["username"]),
+            ).fetchone()
+            if not created:
+                cur = conn.execute("select location_code from pallet_locations where pa_code = %s", (pa,)).fetchone()
+                if cur["location_code"] == loc:
+                    same.append(pa)
+                else:
+                    failed.append({"pa": pa, "msg": f"Đã ở {cur['location_code']} – dùng tab CHUYỂN"})
+                continue
+            row = conn.execute(INSERT_LOG, ("NHAP", pa, loc, staff, user["id"], user["username"], None)).fetchone()
+            saved.append(scan_out(row))
+        total_at_loc = loc_count(conn, loc)
+    return {"loc": loc, "loc_count": total_at_loc, "saved": saved, "same": same, "failed": failed}
+
+
 @app.get("/api/pallets/{pa}")
 def get_pallet(pa: str, user: dict = Depends(require("scan"))):
     pa = norm_code(pa)

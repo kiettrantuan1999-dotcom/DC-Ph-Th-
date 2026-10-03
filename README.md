@@ -3,7 +3,7 @@
 Web app chạy trên trình duyệt của PDA để định vị pallet nhập hàng.
 
 - **Đăng nhập** bằng tài khoản riêng của từng người.
-- **ĐỊNH VỊ**: nhân viên scan → mã PA → mã vị trí, app tự lưu ngay khi scan xong vị trí.
+- **ĐỊNH VỊ**: scan vị trí lưu trữ → scan nhiều mã PA liên tiếp → bấm LƯU để ghi cả lô vào vị trí đó.
 - **CHUYỂN**: chuyển PA từ vị trí lưu trữ này sang vị trí khác.
 - **LOG**: xem lịch sử, tìm theo mã PA / vị trí / nhân viên, lọc theo ngày, loại thao tác, hoặc chỉ của mình.
 - **DASHBOARD**: số PA nhập theo ngày nhận hàng (theo dữ liệu WMS), chia theo trạng thái Đã định vị / Chưa định vị / Chờ PickPack, kèm bảng chi tiết theo ngày.
@@ -115,13 +115,16 @@ Railway tự nhận Python qua `requirements.txt`. Lệnh chạy và healthcheck
 ## Cách dùng màn ĐỊNH VỊ
 
 1. **Nhân viên scan**: mặc định là tên người đăng nhập. Có thể sửa hoặc scan thẻ nhân viên. Máy sẽ nhớ tên này cho các lần sau.
-2. Scan **mã PA**. Con trỏ tự nhảy xuống ô vị trí.
-3. Scan **mã vị trí**. App tự lưu, kêu *bíp* và rung, rồi quay về ô mã PA để scan pallet tiếp theo.
+2. Scan **mã vị trí lưu trữ**. Con trỏ tự nhảy xuống ô mã PA.
+3. Scan **lần lượt các mã PA** sẽ cất vào vị trí đó. Mỗi mã kêu *bíp* và hiện thành một thẻ trong danh sách bên dưới; bấm ✕ để bỏ mã scan nhầm.
+4. Bấm **LƯU n PA**. App ghi cả lô vào vị trí vừa scan, giữ nguyên vị trí để scan tiếp lô sau.
+
+Nếu trong lô có PA đã nằm ở vị trí khác, các PA còn lại vẫn được lưu; PA lỗi ở lại trong danh sách kèm lý do.
 
 Kết quả hiện theo màu:
 
 - **Xanh**: đã lưu. Dòng dưới cho biết vị trí đó hiện có bao nhiêu PA.
-- **Vàng**: PA đã ở đúng vị trí này từ trước. App không ghi thêm log.
+- **Vàng**: có PA đã ở đúng vị trí này từ trước (không ghi thêm log), hoặc lô lưu được một phần.
 - **Đỏ + bíp 2 tiếng**: chưa lưu. Dòng chữ bên dưới cho biết lý do, ví dụ PA đã có vị trí khác, mất mạng, hoặc scan nhầm mã.
 
 Màn **CHUYỂN** dùng tương tự: scan PA, app hiện vị trí hiện tại, rồi scan **vị trí mới**.

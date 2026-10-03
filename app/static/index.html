@@ -265,6 +265,20 @@
   .field .inp::placeholder { font-family: "Segoe UI", system-ui, sans-serif; font-weight: 500; font-size: 17px; letter-spacing: 0; color: #9aa7b8; }
   .field.active .inp { border-color: var(--pri); background: var(--pri-bg); }
   .field .inp.staff { font-size: 17px; font-weight: 600; letter-spacing: 0; font-family: "Segoe UI", system-ui, sans-serif; height: 48px; }
+  .bt-count { font-size: 12px; font-weight: 700; color: var(--pri); }
+  .bt-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; max-height: 210px; overflow-y: auto; }
+  .bt-list:empty { display: none; }
+  .bt-item { display: inline-flex; align-items: center; gap: 6px; background: var(--pri-bg); border: 1px solid #c9ddfb; border-radius: 8px;
+    padding: 5px 6px 5px 8px; font-size: 14px; font-weight: 700; font-family: ui-monospace, Consolas, monospace; }
+  .bt-item.err { background: var(--err-bg); border-color: #f3c2c2; color: var(--err); }
+  .bt-item .bt-no { font-family: "Segoe UI", sans-serif; font-size: 11px; font-weight: 700; color: var(--muted); }
+  .bt-item.err .bt-no { color: var(--err); }
+  .bt-item .bt-err { font-family: "Segoe UI", sans-serif; font-size: 11px; font-weight: 600; }
+  .bt-item .bt-x { border: 0; background: rgba(0,0,0,.06); color: inherit; width: 22px; height: 22px; border-radius: 6px; cursor: pointer;
+    font-size: 12px; line-height: 1; display: grid; place-items: center; }
+  .bt-item .bt-x:hover { background: rgba(0,0,0,.14); }
+  .result .r-bad { color: var(--err); font-weight: 700; }
+
   .cur-loc { margin: -2px 0 12px; padding: 10px 12px; border-radius: 10px; background: var(--mv-bg); font-size: 14px; border: 1px solid #e0d4f5; }
   .cur-loc b { font-size: 20px; color: var(--mv); font-family: ui-monospace, Consolas, monospace; }
   .cur-loc.err { background: var(--err-bg); color: var(--err); font-weight: 600; border-color: #f5c6c6; }
@@ -451,17 +465,21 @@
         </div>
         <div class="field">
           <div class="lbl-row">
-            <label for="in-pa"><span class="step">2</span>Mã PA</label>
+            <label for="in-loc"><span class="step">2</span>Vị trí lưu trữ</label>
             <button type="button" class="link-btn kbd-toggle">⌨ Gõ tay</button>
+          </div>
+          <input class="inp scan" id="in-loc" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan mã vị trí" data-ph-pda="Scan mã vị trí" data-ph-cam="📷 Chạm để quét vị trí">
+        </div>
+        <div class="field">
+          <div class="lbl-row">
+            <label for="in-pa"><span class="step">3</span>Mã PA – scan nhiều mã liên tiếp</label>
+            <span class="bt-count" id="in-count-batch">Chưa scan mã nào</span>
           </div>
           <input class="inp scan" id="in-pa" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan mã PA" data-ph-pda="Scan mã PA" data-ph-cam="📷 Chạm để quét mã PA">
         </div>
-        <div class="field">
-          <div class="lbl-row"><label for="in-loc"><span class="step">3</span>Mã vị trí lưu trữ</label></div>
-          <input class="inp scan" id="in-loc" inputmode="none" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan mã vị trí" data-ph-pda="Scan mã vị trí" data-ph-cam="📷 Chạm để quét vị trí">
-        </div>
+        <div class="bt-list" id="in-batch-list"></div>
         <div class="actions">
-          <button type="button" class="btn btn-light" id="in-clear">Xóa</button>
+          <button type="button" class="btn btn-light" id="in-clear">Xóa danh sách</button>
           <button type="button" class="btn btn-save" id="in-save">LƯU</button>
         </div>
       </div>
@@ -1052,16 +1070,6 @@
   }
 
   const FORMS = {
-    in: makeForm('in', {
-      saveLabel: 'LƯU',
-      submit: (b) => api('/api/scans', { method: 'POST', body: b }),
-      render: (r) => {
-        const main = `${esc(r.pa)} <span class="arrow">→</span> ${esc(r.loc)}`;
-        const count = `Vị trí ${r.loc} hiện có ${r.loc_count} PA`;
-        if (r.status === 'same') return { kind: 'warn', title: 'PA ĐÃ Ở VỊ TRÍ NÀY – KHÔNG GHI THÊM', main, note: count };
-        return { kind: 'ok', title: '✔ ĐÃ ĐỊNH VỊ', main, sub: `${r.time} · ${r.staff}`, note: count };
-      },
-    }),
     mv: makeForm('mv', {
       saveLabel: 'CHUYỂN',
       lookupPa: (pa) => api('/api/pallets/' + encodeURIComponent(pa)),
@@ -1075,6 +1083,198 @@
       }),
     }),
   };
+
+  // ---------------------------------------------------------------- ĐỊNH VỊ theo lô: 1 vị trí – nhiều PA
+  const IN = { staff: $('in-staff'), loc: $('in-loc'), pa: $('in-pa') };
+  const IN_ORDER = ['staff', 'loc', 'pa'];
+  let inList = [];          // [{ pa, err }]
+  let inBusy = false;
+
+  function inMark(activeKey) {
+    IN_ORDER.forEach((k) => {
+      const box = IN[k].closest('.field');
+      box.classList.toggle('active', k === activeKey);
+      box.classList.toggle('done', k !== activeKey && (k === 'pa' ? inList.length > 0 : !!IN[k].value.trim()));
+    });
+  }
+  function inFocus(el) {
+    el.focus();
+    try { el.select(); } catch (e) {}
+    inMark(IN_ORDER.find((k) => IN[k] === el));
+  }
+  function inFocusNext() {
+    inFocus(!IN.staff.value.trim() ? IN.staff : (!IN.loc.value.trim() ? IN.loc : IN.pa));
+  }
+  function inSaveStaff() {
+    IN.staff.value = IN.staff.value.replace(/\s+/g, ' ').trim();
+    syncStaff(IN.staff.value, inForm);
+  }
+  function inResult(kind, title, main, sub, note) {
+    const box = $('in-result');
+    box.className = 'result ' + kind;
+    box.innerHTML = `<div class="r-title">${esc(title)}</div>`
+      + (main ? `<div class="r-main">${main}</div>` : '')
+      + (sub ? `<div class="r-sub">${esc(sub)}</div>` : '')
+      + (note ? `<div class="r-note">${note}</div>` : '');
+  }
+  function inFail(msg, el) {
+    beep(false);
+    inResult('err', '✖ CHƯA LƯU', '', '', esc(msg));
+    if (el) inFocus(el);
+  }
+
+  function inRender() {
+    const n = inList.length;
+    $('in-count-batch').textContent = n ? `${n} PA` : 'Chưa scan mã nào';
+    $('in-batch-list').innerHTML = inList.map((x, i) => `<div class="bt-item${x.err ? ' err' : ''}" title="${esc(x.err || '')}">
+        <span class="bt-no">${i + 1}</span><span class="bt-code">${esc(x.pa)}</span>
+        ${x.err ? `<span class="bt-err">${esc(x.err)}</span>` : ''}
+        <button type="button" class="bt-x" data-pa="${esc(x.pa)}" aria-label="Bỏ ${esc(x.pa)}">✕</button>
+      </div>`).join('');
+    $('in-save').disabled = !n || inBusy;
+    $('in-save').textContent = inBusy ? 'ĐANG LƯU…' : (n ? `LƯU ${n} PA` : 'LƯU');
+    $('in-clear').disabled = !n;
+    inMark(document.activeElement && IN_ORDER.find((k) => IN[k] === document.activeElement));
+  }
+
+  function inAdd(code) {
+    const pa = norm(code);
+    if (!pa) return false;
+    if (pa === norm(IN.loc.value)) { inFail('Mã vừa scan trùng mã vị trí – scan mã PA', IN.pa); return false; }
+    if (inList.some((x) => x.pa === pa)) { inFail(`${pa} đã có trong danh sách`, IN.pa); return false; }
+    inList.push({ pa });
+    inRender();
+    beep(true);
+    return true;
+  }
+
+  $('in-batch-list').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('.bt-x');
+    if (!btn) return;
+    inList = inList.filter((x) => x.pa !== btn.dataset.pa);
+    inRender();
+    inFocus(IN.pa);
+  });
+
+  Object.entries(IN).forEach(([key, el]) => {
+    el.addEventListener('focus', () => inMark(key));
+    el.addEventListener('input', () => { if (el !== IN.staff) el.value = el.value.toUpperCase(); });
+    el.addEventListener('keydown', (ev) => {
+      const isEnter = ev.key === 'Enter' || ev.keyCode === 13;
+      const isTab = ev.key === 'Tab' || ev.keyCode === 9;
+      if (!isEnter && !isTab) return;
+      ev.preventDefault();
+      if (key === 'staff') {
+        if (!el.value.trim()) { beep(false); return; }
+        inSaveStaff();
+        inFocus(IN.loc);
+        if (cameraMode()) inCamera(IN.loc);
+      } else if (key === 'loc') {
+        if (!el.value.trim()) { beep(false); return; }
+        inFocus(IN.pa);
+        if (cameraMode()) inCamera(IN.pa);
+      } else {
+        if (!el.value.trim()) { if (inList.length) inSubmit(); else beep(false); return; }
+        if (inAdd(el.value)) { el.value = ''; inFocus(IN.pa); }
+      }
+    });
+  });
+  IN.staff.addEventListener('change', inSaveStaff);
+
+  // Chế độ điện thoại: chạm ô mã → mở camera; quét PA xong tự mở lại để quét mã tiếp theo
+  function inCamera(el) {
+    const label = el === IN.loc ? 'mã vị trí lưu trữ' : 'mã PA';
+    openCamera(label, (text) => {
+      if (el === IN.loc) {
+        el.value = norm(text);
+        beep(true);
+        inFocus(IN.pa);
+        inCamera(IN.pa);
+      } else if (inAdd(text)) {
+        inCamera(IN.pa);     // quét tiếp mã PA kế tiếp
+      } else {
+        inFocus(IN.pa);
+      }
+    }, () => inFocus(el));
+  }
+  [IN.loc, IN.pa].forEach((el) => el.addEventListener('click', (ev) => {
+    if (!cameraMode()) return;
+    ev.preventDefault();
+    el.blur();
+    inMark(IN_ORDER.find((k) => IN[k] === el));
+    inCamera(el);
+  }));
+
+  $('tab-in').addEventListener('click', (ev) => {
+    if (!ev.target.closest('input, button, label, .row, .bt-item')) inFocusNext();
+  });
+  $('in-clear').addEventListener('click', () => {
+    inList = [];
+    IN.pa.value = '';
+    $('in-result').classList.add('hidden');
+    inRender();
+    inFocus(IN.pa);
+  });
+  $('in-save').addEventListener('click', inSubmit);
+
+  async function inSubmit() {
+    if (inBusy) return;
+    inSaveStaff();
+    const staff = IN.staff.value, loc = norm(IN.loc.value);
+    if (!staff) return inFail('Nhập hoặc scan tên nhân viên', IN.staff);
+    if (!loc) return inFail('Chưa scan mã vị trí lưu trữ', IN.loc);
+    if (IN.pa.value.trim() && !inAdd(IN.pa.value)) return;
+    IN.pa.value = '';
+    if (!inList.length) return inFail('Chưa scan mã PA nào', IN.pa);
+
+    inBusy = true; inRender();
+    try {
+      const r = await api('/api/scans/batch', { method: 'POST', body: { loc, staff, pas: inList.map((x) => x.pa) }, timeout: 60000 });
+      const done = new Set([...r.saved.map((x) => x.pa), ...r.same]);
+      inList = r.failed.map((f) => ({ pa: f.pa, err: f.msg }));   // giữ lại PA lỗi để xử lý
+      const notes = [`Vị trí <b>${esc(r.loc)}</b> hiện có ${nf(r.loc_count)} PA`];
+      if (r.same.length) notes.push(`${r.same.length} PA đã ở vị trí này từ trước: ${esc(r.same.join(', '))}`);
+      if (r.failed.length) notes.push(`<span class="r-bad">${r.failed.length} PA chưa lưu được – xem danh sách bên trên</span>`);
+      if (r.saved.length) {
+        beep(true);
+        inResult(r.failed.length ? 'warn' : 'ok', `✔ ĐÃ LƯU ${r.saved.length} PA`,
+          `${esc(r.saved.map((x) => x.pa).join(', '))} <span class="arrow">→</span> ${esc(r.loc)}`,
+          `${r.saved[0].time} · ${r.saved[0].staff}`, notes.join('<br>'));
+        r.saved.slice().reverse().forEach((x) => recentAdd(x));
+      } else {
+        beep(false);
+        inResult(r.failed.length ? 'err' : 'warn', r.failed.length ? '✖ KHÔNG LƯU ĐƯỢC PA NÀO' : 'TẤT CẢ PA ĐÃ Ở VỊ TRÍ NÀY',
+          '', '', notes.join('<br>'));
+      }
+      inFocus(IN.pa);
+    } catch (e) {
+      if (!onAuthFail(e)) inFail(e.message, IN.pa);
+    } finally {
+      inBusy = false; inRender();
+    }
+  }
+
+  const inRecent = [];
+  function recentAdd(x) {
+    inRecent.unshift(x);
+    if (inRecent.length > 30) inRecent.pop();
+    $('in-count').textContent = inRecent.length ? inRecent.length + ' lượt' : '';
+    $('in-recent').innerHTML = inRecent.map((r) => rowHtml(r, false)).join('');
+  }
+
+  const inForm = {
+    F: IN, focusNext: inFocusNext,
+    reset(staff) {
+      IN.staff.value = staff; IN.loc.value = ''; IN.pa.value = '';
+      inList = []; inRecent.length = 0;
+      $('in-recent').innerHTML = '<div class="empty">Chưa có lượt nào</div>';
+      $('in-count').textContent = '';
+      $('in-result').classList.add('hidden');
+      inRender();
+    },
+  };
+
+  FORMS.in = inForm;
 
   function setKbd(on) {
     manualKbd = on;
