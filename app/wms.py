@@ -25,8 +25,28 @@ from google.oauth2 import service_account
 from . import config
 
 SHEET_ID = os.environ.get("WMS_SESSION_SHEET_ID", "1h6veWy2fTGeKnUJIWp_WZzAqDE-RKer4nwk1hB58Sr4")
-# Có thể khai báo nhiều ô, cách nhau dấu phẩy: WMS_SESSION_RANGE=Config!B3,Config!B4
-SESSION_RANGES = [c.strip() for c in os.environ.get("WMS_SESSION_RANGE", "").split(",") if c.strip()] or ["Config!B2"]
+# Khai báo ô chứa link session. Nhiều kho thì liệt kê nhiều ô, cách nhau dấu phẩy;
+# thêm ":<mã kho>" khi một file session chứa nhiều kho:
+#   WMS_SESSION_RANGE=Config!B4:BD1E1,Config!B3:BDD
+def _parse_ranges(raw: str) -> tuple[list[str], dict[str, str]]:
+    cells, kho = [], {}
+    for item in raw.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        cell, sep, wh = item.rpartition(":")
+        if not sep:
+            cell, wh = wh, ""
+        cell = cell.strip()
+        cells.append(cell)
+        if wh.strip():
+            kho[cell] = wh.strip()
+    return cells, kho
+
+
+SESSION_RANGES, SESSION_WH = _parse_ranges(os.environ.get("WMS_SESSION_RANGE", ""))
+if not SESSION_RANGES:
+    SESSION_RANGES = ["Config!B2"]
 SHEET_RANGE = SESSION_RANGES[0]
 WH_CODE = os.environ.get("WMS_WH_CODE", "PTD")
 WH_REQUIRED = bool(os.environ.get("WMS_WH_CODE"))  # có khai báo kho → bắt buộc đúng kho đó
@@ -140,17 +160,20 @@ def _read_session_bundle(cell: str = "") -> dict:
 def _pick_session(bundle: dict, cell: str) -> dict:
     """Chọn session 'sft' trong file; lấy luôn mã kho và đường dẫn API của kho đó."""
     by_wh = (bundle.get("sessions_by_warehouse") or {}).get("sft") or {}
-    candidates = [by_wh.get(WH_CODE)]
-    if not WH_REQUIRED:   # không khai báo kho cụ thể → lấy session nào dùng được
+    kho = SESSION_WH.get(cell, WH_CODE)          # kho khai báo riêng cho ô này, nếu có
+    bat_buoc = cell in SESSION_WH or WH_REQUIRED
+    candidates = [by_wh.get(kho)]
+    if not bat_buoc:   # không khai báo kho cụ thể → lấy session nào dùng được
         candidates += [(bundle.get("sessions") or {}).get("sft"), bundle if "headers" in bundle else None]
         candidates += list(by_wh.values())
     for s in candidates:
         headers = (s or {}).get("headers") or {}
         if all(headers.get(k) for k in HEADER_KEYS):
-            wh = (headers.get("warehouse") or WH_CODE).strip()
+            wh = (headers.get("warehouse") or kho).strip()
             # Báo cáo tồn Bin nằm ở dịch vụ sft3-<kho>; URL trong file session có thể thuộc dịch vụ khác
             m = re.match(r"(https://api-supra\.winmart\.vn/sft3-[a-z0-9]+)", (s or {}).get("request_url", "") or "")
-            base = API_BASE or (m.group(1) if m else f"https://api-supra.winmart.vn/sft3-{wh.lower()}")
+            base = (API_BASE if (API_BASE and not SESSION_WH) else "") \
+                or (m.group(1) if m else f"https://api-supra.winmart.vn/sft3-{wh.lower()}")
             return {
                 "cell": cell, "wh": wh, "base": base,
                 "headers": {k: headers[k] for k in HEADER_KEYS},
@@ -158,8 +181,8 @@ def _pick_session(bundle: dict, cell: str) -> dict:
             }
     có = ", ".join(w for w, x in by_wh.items() if all((x.get("headers") or {}).get(k) for k in HEADER_KEYS)) or "(không có)"
     raise WmsError(
-        f"File session ở ô {cell} không có session dùng được của kho {WH_CODE}. "
-        f"Kho đang có trong file: {có}. Mở wms-supra.winmart.vn, chuyển sang kho {WH_CODE}, "
+        f"File session ở ô {cell} không có session dùng được của kho {kho}. "
+        f"Kho đang có trong file: {có}. Mở wms-supra.winmart.vn, chuyển sang kho {kho}, "
         "xuất lại session bằng extension Supra Session Capture rồi dán link mới vào ô này."
     )
 
