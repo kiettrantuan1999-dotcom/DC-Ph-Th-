@@ -130,6 +130,12 @@ def list_sites(user: dict = Depends(current_user)):
         """select site_code as code, min(site) as name, count(*) as n from wms_bin_stocks
            where site_code is not null group by 1 order by 1"""
     )
+    co = {r["code"] for r in rows}
+    # site khai báo sẵn trong cấu hình (APP_SITES) – để tạo tài khoản được ngay khi chưa có dữ liệu WMS
+    for s in config.SITES:
+        if s["code"] not in co:
+            rows.append({"code": s["code"], "name": s["name"], "n": 0})
+    rows.sort(key=lambda r: r["code"])
     return {"rows": rows, "my_site": user["site_code"]}
 
 

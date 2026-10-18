@@ -29,6 +29,21 @@ TZ = ZoneInfo(os.environ.get("APP_TZ", "Asia/Ho_Chi_Minh"))
 DC_NAME = os.environ.get("APP_DC_NAME", "DC Phú Thọ")
 DC_SITE = os.environ.get("APP_DC_SITE", "1393 – WMP_AMBIENT_PHUTHO")
 
+# Danh sách site của DC, dùng khi chưa đồng bộ dữ liệu WMS lần nào (lúc tạo tài khoản).
+# Khai báo: APP_SITES=1379,1312  hoặc kèm tên: APP_SITES=1379:BD1_KM,1312:BD3
+def _parse_sites(raw: str) -> list[dict]:
+    out = []
+    for item in raw.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        code, _, name = item.partition(":")
+        out.append({"code": code.strip(), "name": (name.strip() or code.strip())})
+    return out
+
+
+SITES = _parse_sites(os.environ.get("APP_SITES", ""))
+
 # Regex kiểm tra định dạng mã (để trống = không kiểm tra). VD: PA_PATTERN=PA\d{8}
 PA_RE = re.compile(os.environ["PA_PATTERN"]) if os.environ.get("PA_PATTERN") else None
 LOC_RE = re.compile(os.environ["LOC_PATTERN"]) if os.environ.get("LOC_PATTERN") else None
