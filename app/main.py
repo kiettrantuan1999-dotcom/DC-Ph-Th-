@@ -88,12 +88,13 @@ def public_user(u: dict) -> dict:
         "username": u["username"],
         "full_name": u["full_name"],
         "role": u["role"],
+        "site_code": u["site_code"],
         "role_label": ROLES.get(u["role"], ROLES["nhanvien"])["label"],
         "perms": sorted(perms_of(u)),
     }
 
 
-USER_COLS = "id, username, full_name, role, password_hash, is_active"
+USER_COLS = "id, username, full_name, role, site_code, password_hash, is_active"
 
 
 def current_user(authorization: str | None = Header(default=None)) -> dict:
@@ -107,6 +108,29 @@ def current_user(authorization: str | None = Header(default=None)) -> dict:
     if not user or not user["is_active"] or not security.token_matches(data, user):
         raise expired
     return user
+
+
+def scope_site(user: dict, asked: str = "") -> str:
+    """Site được phép xem: nhân viên gắn site thì khóa cứng site đó; người xem tất cả thì
+    theo site đang chọn trên giao diện (rỗng = tất cả)."""
+    if user.get("site_code"):
+        return user["site_code"]
+    return (asked or "").strip()
+
+
+def site_filter(user: dict, asked: str, col: str = "site_code") -> tuple[str, list]:
+    site = scope_site(user, asked)
+    return (f"{col} = %s", [site]) if site else ("", [])
+
+
+@app.get("/api/sites")
+def list_sites(user: dict = Depends(current_user)):
+    """Danh sách site có dữ liệu (để lọc trên giao diện)."""
+    rows = db.fetch_all(
+        """select site_code as code, min(site) as name, count(*) as n from wms_bin_stocks
+           where site_code is not null group by 1 order by 1"""
+    )
+    return {"rows": rows, "my_site": user["site_code"]}
 
 
 def require(perm: str):
@@ -192,8 +216,8 @@ def clean_scan(body: ScanIn) -> tuple[str, str, str]:
 
 
 INSERT_LOG = """
-insert into pallet_scans (action, pa_code, location_code, staff_name, user_id, username, prev_location)
-values (%s, %s, %s, %s, %s, %s, %s)
+insert into pallet_scans (action, pa_code, location_code, staff_name, user_id, username, prev_location, site_code)
+values (%s, %s, %s, %s, %s, %s, %s, %s)
 returning id, scanned_at, action, pa_code, location_code, staff_name, username, prev_location
 """
 
@@ -208,9 +232,9 @@ def create_scan(body: ScanIn, user: dict = Depends(require("scan"))):
     pa, loc, staff = clean_scan(body)
     with db.transaction() as conn:
         created = conn.execute(
-            """insert into pallet_locations (pa_code, location_code, staff_name, username)
-               values (%s, %s, %s, %s) on conflict (pa_code) do nothing returning pa_code""",
-            (pa, loc, staff, user["username"]),
+            """insert into pallet_locations (pa_code, location_code, staff_name, username, site_code)
+               values (%s, %s, %s, %s, %s) on conflict (pa_code) do nothing returning pa_code""",
+            (pa, loc, staff, user["username"], user["site_code"]),
         ).fetchone()
         if not created:
             cur = conn.execute("select location_code from pallet_locations where pa_code = %s", (pa,)).fetchone()
@@ -219,7 +243,9 @@ def create_scan(body: ScanIn, user: dict = Depends(require("scan"))):
             raise HTTPException(
                 409, f"PA {pa} đã được định vị ở {cur['location_code']}. Muốn đổi vị trí → dùng tab CHUYỂN VT"
             )
-        row = conn.execute(INSERT_LOG, ("NHAP", pa, loc, staff, user["id"], user["username"], None)).fetchone()
+        row = conn.execute(
+            INSERT_LOG, ("NHAP", pa, loc, staff, user["id"], user["username"], None, user["site_code"])
+        ).fetchone()
         return {**scan_out(row), "status": "new", "loc_count": loc_count(conn, loc)}
 
 
@@ -260,9 +286,9 @@ def create_scans(body: BatchScanIn, user: dict = Depends(require("scan"))):
                 failed.append({"pa": pa, "msg": "Sai định dạng mã PA"})
                 continue
             created = conn.execute(
-                """insert into pallet_locations (pa_code, location_code, staff_name, username)
-                   values (%s, %s, %s, %s) on conflict (pa_code) do nothing returning pa_code""",
-                (pa, loc, staff, user["username"]),
+                """insert into pallet_locations (pa_code, location_code, staff_name, username, site_code)
+                   values (%s, %s, %s, %s, %s) on conflict (pa_code) do nothing returning pa_code""",
+                (pa, loc, staff, user["username"], user["site_code"]),
             ).fetchone()
             if not created:
                 cur = conn.execute("select location_code from pallet_locations where pa_code = %s", (pa,)).fetchone()
@@ -271,7 +297,9 @@ def create_scans(body: BatchScanIn, user: dict = Depends(require("scan"))):
                 else:
                     failed.append({"pa": pa, "msg": f"Đã ở {cur['location_code']} – dùng tab CHUYỂN"})
                 continue
-            row = conn.execute(INSERT_LOG, ("NHAP", pa, loc, staff, user["id"], user["username"], None)).fetchone()
+            row = conn.execute(
+                INSERT_LOG, ("NHAP", pa, loc, staff, user["id"], user["username"], None, user["site_code"])
+            ).fetchone()
             saved.append(scan_out(row))
         total_at_loc = loc_count(conn, loc)
     return {"loc": loc, "loc_count": total_at_loc, "saved": saved, "same": same, "failed": failed}
@@ -280,8 +308,11 @@ def create_scans(body: BatchScanIn, user: dict = Depends(require("scan"))):
 @app.get("/api/pallets/{pa}")
 def get_pallet(pa: str, user: dict = Depends(require("scan"))):
     pa = norm_code(pa)
+    where_site, site_params = site_filter(user, "")
     row = db.fetch_one(
-        "select pa_code, location_code, updated_at, staff_name from pallet_locations where pa_code = %s", (pa,)
+        "select pa_code, location_code, updated_at, staff_name from pallet_locations where pa_code = %s"
+        + (f" and {where_site}" if where_site else ""),
+        [pa] + site_params,
     )
     if not row:
         raise HTTPException(404, f"PA {pa} chưa được định vị – dùng tab ĐỊNH VỊ trước")
@@ -294,8 +325,11 @@ def create_move(body: ScanIn, user: dict = Depends(require("move"))):
     """CHUYỂN VT: đổi vị trí của PA đã được định vị."""
     pa, loc, staff = clean_scan(body)
     with db.transaction() as conn:
+        where_site, site_params = site_filter(user, "")
         cur = conn.execute(
-            "select location_code from pallet_locations where pa_code = %s for update", (pa,)
+            f"select location_code from pallet_locations where pa_code = %s"
+            + (f" and {where_site}" if where_site else "") + " for update",
+            [pa] + site_params,
         ).fetchone()
         if not cur:
             raise HTTPException(404, f"PA {pa} chưa được định vị – dùng tab ĐỊNH VỊ trước")
@@ -303,11 +337,14 @@ def create_move(body: ScanIn, user: dict = Depends(require("move"))):
         if old == loc:
             raise HTTPException(400, f"PA {pa} đang ở {loc} rồi – scan vị trí MỚI")
         conn.execute(
-            """update pallet_locations set location_code = %s, updated_at = now(), staff_name = %s, username = %s
+            """update pallet_locations set location_code = %s, updated_at = now(), staff_name = %s, username = %s,
+                      site_code = coalesce(%s, site_code)
                where pa_code = %s""",
-            (loc, staff, user["username"], pa),
+            (loc, staff, user["username"], user["site_code"], pa),
         )
-        row = conn.execute(INSERT_LOG, ("CHUYEN", pa, loc, staff, user["id"], user["username"], old)).fetchone()
+        row = conn.execute(
+            INSERT_LOG, ("CHUYEN", pa, loc, staff, user["id"], user["username"], old, user["site_code"])
+        ).fetchone()
         return {**scan_out(row), "status": "moved", "loc_count": loc_count(conn, loc)}
 
 
@@ -363,8 +400,12 @@ def last_wms_sync() -> str | None:
     return fmt_time(row["t"]) if row and row["t"] else None
 
 
-def log_filter(q: str, scope: str, action: str, mine: bool, user: dict) -> tuple[str, list]:
+def log_filter(q: str, scope: str, action: str, mine: bool, user: dict, site: str = "") -> tuple[str, list]:
     where, params = [], []
+    site_sql, site_params = site_filter(user, site, "s.site_code")
+    if site_sql:
+        where.append(site_sql)
+        params += site_params
     if scope == "today":
         start = datetime.combine(datetime.now(config.TZ).date(), dtime.min, tzinfo=config.TZ)
         where.append("scanned_at >= %s")
@@ -388,6 +429,7 @@ class LogQuery(BaseModel):
     scope: str = Field("today", pattern="^(today|all)$")
     action: str = Field("", pattern="^(|NHAP|CHUYEN)$")
     mine: bool = False
+    site: str = Field("", max_length=20)
 
 
 @app.get("/api/logs")
@@ -396,7 +438,7 @@ def list_logs(
     limit: int = Query(200, ge=1, le=500),
     user: dict = Depends(require("log")),
 ):
-    where_sql, params = log_filter(f.q, f.scope, f.action, f.mine, user)
+    where_sql, params = log_filter(f.q, f.scope, f.action, f.mine, user, f.site)
     rows = db.fetch_all(f"{LOG_SELECT} {where_sql} order by s.scanned_at desc, s.id desc limit %s", params + [limit])
     stats = db.fetch_one(f"{LOG_STATS} {where_sql}", params)
     return {"rows": [log_out(r) for r in rows], "total": stats["n"], "stats": stats, "wms_synced_at": last_wms_sync()}
@@ -405,7 +447,7 @@ def list_logs(
 @app.get("/api/logs/export")
 def export_logs(f: LogQuery = Depends(), user: dict = Depends(require("log"))):
     """Xuất CSV (UTF-8 có BOM để Excel đọc đúng tiếng Việt) theo bộ lọc đang chọn."""
-    where_sql, params = log_filter(f.q, f.scope, f.action, f.mine, user)
+    where_sql, params = log_filter(f.q, f.scope, f.action, f.mine, user, f.site)
     rows = db.fetch_all(f"{LOG_SELECT} {where_sql} order by s.scanned_at desc, s.id desc limit %s", params + [EXPORT_MAX])
     buf = io.StringIO()
     w = csv.writer(buf)
@@ -436,6 +478,7 @@ with pa as (
            min(lt_status) as st, count(*) as sku_lines, coalesce(sum(qty), 0) as qty
     from wms_bin_stocks
     where received_date ~ '^\d{2}/\d{2}/\d{4}$' and coalesce(ptlt_code, vtlt_code) is not null
+      and (%s::text is null or site_code = %s::text)
     group by 1
 )
 select d,
@@ -454,11 +497,16 @@ order by d
 
 
 @app.get("/api/dashboard")
-def dashboard(days: int = Query(30, ge=0, le=3650), _user: dict = Depends(require("wms"))):
+def dashboard(
+    days: int = Query(30, ge=0, le=3650),
+    site: str = Query("", max_length=20),
+    user: dict = Depends(require("wms")),
+):
     """Số PA nhập theo ngày nhận hàng (tính trên tồn kho hiện tại của WMS). days=0 → tất cả."""
     today = datetime.now(config.TZ).date()
     since = today.fromordinal(today.toordinal() - days + 1) if days else None
-    rows = db.fetch_all(DASHBOARD_SQL, (since, since))
+    sc = scope_site(user, site) or None
+    rows = db.fetch_all(DASHBOARD_SQL, (sc, sc, since, since))
     out = [{
         "date": r["d"].strftime("%d/%m/%Y"), "iso": r["d"].isoformat(),
         "pa": r["pa"], "dinh_vi": r["dinh_vi"], "chua": r["chua"], "pickpack": r["pickpack"], "khac": r["khac"],
@@ -489,21 +537,31 @@ order by l.location_code, l.pa_code
 
 
 @app.get("/api/putaway")
-def putaway_list(q: str = Query("", max_length=100), _user: dict = Depends(require("putaway"))):
+def putaway_list(
+    q: str = Query("", max_length=100),
+    site: str = Query("", max_length=20),
+    user: dict = Depends(require("putaway")),
+):
     """PA đã scan định vị trong app nhưng trên WMS vẫn 'Chờ lưu trữ' – sắp A→Z theo vị trí."""
     params: list = [WMS_WAITING]
-    where = ""
+    conds = []
+    site_sql, site_params = site_filter(user, site, "l.site_code")
+    if site_sql:
+        conds.append(site_sql)
+        params += site_params
     q = q.strip()
     if q:
         like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-        where = "where l.pa_code ilike %s or l.location_code ilike %s"
+        conds.append("(l.pa_code ilike %s or l.location_code ilike %s)")
         params += [like, like]
+    where = ("where " + " and ".join(conds)) if conds else ""
     rows = db.fetch_all(PUTAWAY_SQL.format(where=where), params)
+    sc = scope_site(user, site) or None
     not_scanned = db.fetch_one(
         """select count(distinct coalesce(ptlt_code, vtlt_code)) as n from wms_bin_stocks w
-           where lt_status = %s and not exists (
+           where lt_status = %s and (%s::text is null or w.site_code = %s::text) and not exists (
                select 1 from pallet_locations l where l.pa_code = coalesce(w.ptlt_code, w.vtlt_code))""",
-        (WMS_WAITING,),
+        (WMS_WAITING, sc, sc),
     )["n"]
     return {
         "rows": [{
@@ -643,8 +701,13 @@ def agent_error(job_id: int, body: AgentError, _: None = Depends(require_agent))
     return {"ok": True}
 
 
-def wms_filter(q: str, status: str) -> tuple[str, list]:
+def wms_filter(q: str, status: str, user: dict | None = None, site: str = "") -> tuple[str, list]:
     where, params = [], []
+    if user is not None:
+        site_sql, site_params = site_filter(user, site)
+        if site_sql:
+            where.append(site_sql)
+            params += site_params
     if status:
         if status == "(trống)":
             where.append("lt_status is null")
@@ -662,15 +725,16 @@ def wms_filter(q: str, status: str) -> tuple[str, list]:
 class WmsQuery(BaseModel):
     q: str = Field("", max_length=100)
     status: str = Field("", max_length=100)
+    site: str = Field("", max_length=20)
 
 
 @app.get("/api/wms/stocks")
 def wms_stocks(
     f: WmsQuery = Depends(),
     limit: int = Query(300, ge=1, le=1000),
-    _user: dict = Depends(require("wms")),
+    user: dict = Depends(require("wms")),
 ):
-    where_sql, params = wms_filter(f.q, f.status)
+    where_sql, params = wms_filter(f.q, f.status, user, f.site)
     rows = db.fetch_all(
         f"select {WMS_OUT_COLS} from wms_bin_stocks {where_sql} order by vtlt_code, ptlt_code, sku limit %s",
         params + [limit],
@@ -688,8 +752,8 @@ def wms_stocks(
 
 
 @app.get("/api/wms/export")
-def wms_export(f: WmsQuery = Depends(), _user: dict = Depends(require("wms"))):
-    where_sql, params = wms_filter(f.q, f.status)
+def wms_export(f: WmsQuery = Depends(), user: dict = Depends(require("wms"))):
+    where_sql, params = wms_filter(f.q, f.status, user, f.site)
     rows = db.fetch_all(
         f"select {WMS_OUT_COLS} from wms_bin_stocks {where_sql} order by vtlt_code, ptlt_code, sku", params
     )
@@ -739,6 +803,7 @@ class UserCreate(BaseModel):
     username: str = Field(max_length=32)
     full_name: str = Field(max_length=100)
     role: str
+    site_code: str = Field("", max_length=20)
     password: str = Field(max_length=128)
 
 
@@ -752,9 +817,10 @@ def create_user(body: UserCreate, _admin: dict = Depends(require("users"))):
         raise HTTPException(400, "Chưa nhập họ tên")
     try:
         row = db.fetch_one(
-            f"""insert into app_users (username, password_hash, full_name, role) values (%s, %s, %s, %s)
-                returning {USER_COLS}, created_at""",
-            (username, security.hash_password(check_password(body.password)), full_name, check_role(body.role)),
+            f"""insert into app_users (username, password_hash, full_name, role, site_code)
+                values (%s, %s, %s, %s, %s) returning {USER_COLS}, created_at""",
+            (username, security.hash_password(check_password(body.password)), full_name, check_role(body.role),
+             body.site_code.strip() or None),
         )
     except psycopg.errors.UniqueViolation:
         raise HTTPException(409, f"Username '{username}' đã tồn tại")
@@ -764,6 +830,7 @@ def create_user(body: UserCreate, _admin: dict = Depends(require("users"))):
 class UserUpdate(BaseModel):
     full_name: str | None = Field(default=None, max_length=100)
     role: str | None = None
+    site_code: str | None = Field(default=None, max_length=20)
     is_active: bool | None = None
     password: str | None = Field(default=None, max_length=128)
 
@@ -780,6 +847,8 @@ def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require("u
         if user_id == admin["id"] and body.role != "admin":
             raise HTTPException(400, "Không thể tự hạ quyền admin của chính mình")
         sets.append("role = %s"); params.append(check_role(body.role))
+    if body.site_code is not None:
+        sets.append("site_code = %s"); params.append(body.site_code.strip() or None)
     if body.is_active is not None:
         if user_id == admin["id"] and not body.is_active:
             raise HTTPException(400, "Không thể tự khóa tài khoản của chính mình")

@@ -29,7 +29,8 @@ COLUMNS = [
     ("Base Units", "uom"), ("NSX", "mfg_date"), ("HSD", "exp_date"), ("ZoneCode", "zone_code"),
 ]
 NUMERIC = {"qty", "qty_pending"}
-OUT_COLS = ", ".join(col for _, col in COLUMNS)
+OUT_COLS = ", ".join(col for _, col in COLUMNS) + ", site_code"
+SITE_IDX = [c for _, c in COLUMNS].index("site")
 
 
 def _cell(value, col: str):
@@ -62,7 +63,12 @@ def store(log_id: int, content: bytes, file_name: str, part: int = 1, parts: int
         missing = [h for h, _ in COLUMNS if h not in idx]
         if missing:
             raise wms.WmsError("File WMS thiếu cột: " + ", ".join(missing))
-        rows = [[_cell(r[idx[h]] if idx[h] < len(r) else None, col) for h, col in COLUMNS] for r in data]
+        rows = []
+        for r in data:
+            row = [_cell(r[idx[h]] if idx[h] < len(r) else None, col) for h, col in COLUMNS]
+            site = row[SITE_IDX] or ""
+            row.append(site.split(" - ")[0].strip() or None)   # "1379 - WMP_..." → "1379"
+            rows.append(row)
         with db.transaction() as conn:
             if part <= 1:
                 conn.execute("delete from wms_bin_stocks")

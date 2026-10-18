@@ -18,7 +18,16 @@ Web app chạy trên trình duyệt của PDA để định vị pallet nhập h
 - **ĐỊNH VỊ chỉ dùng cho PA chưa có vị trí.** Nếu PA đã ở vị trí khác, app chặn và nhắc sang tab CHUYỂN. Nếu scan lại đúng vị trí cũ, app báo "đã ở vị trí này" và không ghi thêm log.
 - **CHUYỂN** chỉ dùng cho PA đã được định vị. Scan PA xong, app hiện vị trí hiện tại, sau đó scan vị trí mới. Log ghi lại cả vị trí cũ và vị trí mới.
 
-### Phân quyền
+### Phân quyền theo site
+
+Một DC có thể gồm nhiều site (Phú Thọ: 1391, 1392, 1393 · Bình Dương: 1379, 1312).
+
+- Mỗi tài khoản gắn **1 site** (`app_users.site_code`): chỉ scan và chỉ xem dữ liệu của site đó.
+- Để trống site = **xem tất cả site**, dùng cho admin / chuyên viên quản lý nhiều site; trên thanh trên có ô chọn site để lọc.
+- Khi scan, site được lấy theo tài khoản đang đăng nhập, nhân viên không phải chọn.
+- Tra cứu và chuyển vị trí PA của site khác đều bị chặn.
+
+### Phân quyền theo chức năng
 
 | Loại tài khoản | ĐỊNH VỊ | CHUYỂN | LOG | WMS | PHIẾU | USER |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|

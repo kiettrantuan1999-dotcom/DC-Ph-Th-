@@ -89,6 +89,12 @@
   .wh-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 15px;
     background: var(--pri-bg); color: var(--pri); font-weight: 700; font-size: 12px; white-space: nowrap; }
   .wh-chip i { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; display: inline-block; }
+  .tb-sel { height: 34px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--text);
+    font-weight: 600; font-size: 13px; padding: 0 6px; max-width: 190px; cursor: pointer; }
+  .site-fixed { display: inline-flex; align-items: center; height: 30px; padding: 0 10px; border-radius: 15px;
+    background: #eef1f6; color: #334155; font-weight: 700; font-size: 12px; white-space: nowrap; }
+  @media (max-width: 899px) { .tb-sel { background: rgba(255,255,255,.14); border-color: transparent; color: #fff; max-width: 120px; }
+    .site-fixed { background: rgba(255,255,255,.14); color: #fff; } }
   .tb-btn { height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--text);
     font-weight: 600; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
   .tb-btn:hover { background: #f6f8fb; }
@@ -447,6 +453,8 @@
     <header class="topbar">
       <div class="tb-title"><div class="crumb" id="page-crumb"></div><h1 id="page-title"></h1></div>
       <span class="wh-chip"><i></i><span id="wh-label">&nbsp;</span></span>
+      <select class="tb-sel hidden" id="site-pick" title="Chọn site"></select>
+      <span class="site-fixed hidden" id="site-fixed"></span>
       <button type="button" class="tb-btn" id="btn-device" title="Đổi chế độ quét: PDA (đầu scan) / Camera">📟 PDA</button>
       <div class="tb-user">
         <div class="avatar" id="hdr-avatar"></div>
@@ -675,6 +683,9 @@
     <input class="inp" id="uf-username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="32">
     <label class="lbl" for="uf-name">Họ tên</label>
     <input class="inp" id="uf-name" maxlength="100">
+    <label class="lbl" for="uf-site">Site làm việc</label>
+    <select class="inp" id="uf-site"></select>
+    <div class="hint">Nhân viên chỉ thấy dữ liệu của site này. Chọn "Tất cả site" cho quản lý nhiều site.</div>
     <label class="lbl" for="uf-role">Loại tài khoản</label>
     <select class="inp" id="uf-role"></select>
     <div class="hint" id="uf-role-hint"></div>
@@ -798,7 +809,7 @@
     $('view-login').classList.add('hidden');
     $('view-main').classList.remove('hidden');
     $('hdr-name').textContent = u.full_name;
-    $('hdr-user').textContent = '@' + u.username + ' · ' + u.role_label;
+    $('hdr-user').textContent = '@' + u.username + ' · ' + u.role_label + (u.site_code ? ' · ' + u.site_code : '');
     $('hdr-avatar').textContent = initials(u.full_name);
     document.querySelectorAll('.nav-btn').forEach((b) => b.classList.toggle('hidden', !can(b.dataset.perm)));
     // ẩn tiêu đề nhóm menu nếu cả nhóm không có quyền
@@ -809,6 +820,7 @@
     });
     const staff = store.get('pa.staff.' + u.username) || u.full_name;
     Object.values(FORMS).forEach((f) => f.reset(staff));
+    loadSites();
     switchTab(can('wms') ? 'dash' : document.querySelector('.sb-nav .nav-btn:not(.hidden)').dataset.tab);
   }
 
@@ -1401,7 +1413,7 @@
   // ---------------------------------------------------------------- log
   let logScope = 'today', logAction = '', logSeq = 0;
 
-  const logParams = () => new URLSearchParams({ q: $('log-q').value.trim(), scope: logScope, action: logAction, mine: $('log-mine').checked });
+  const logParams = () => new URLSearchParams({ q: $('log-q').value.trim(), scope: logScope, action: logAction, mine: $('log-mine').checked, site: siteParam() });
   const logBody = () => $('log-table').querySelector('tbody');
 
   // Trạng thái định vị của PA theo dữ liệu WMS (so với bản đồng bộ mới nhất)
@@ -1479,7 +1491,7 @@
 
   // ---------------------------------------------------------------- WMS: tồn kho theo Bin
   let wmsStatus = '', wmsSeq = 0;
-  const wmsParams = () => new URLSearchParams({ q: $('wms-q').value.trim(), status: wmsStatus });
+  const wmsParams = () => new URLSearchParams({ q: $('wms-q').value.trim(), status: wmsStatus, site: siteParam() });
   const fmtQty = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleString('vi-VN'));
   const isWaiting = (st) => /chờ lưu/i.test(st || '');
 
@@ -1690,7 +1702,7 @@
     const seq = ++dashSeq;
     $('dash-meta').textContent = 'Đang tải…';
     try {
-      const r = await api('/api/dashboard?days=' + dashDays);
+      const r = await api('/api/dashboard?' + new URLSearchParams({ days: dashDays, site: siteParam() }));
       if (seq !== dashSeq) return;
       dashData = r;
       renderDashboard();
@@ -1873,7 +1885,7 @@
     $('pw-summary').textContent = 'Đang tải…';
     $('pw-err').textContent = '';
     try {
-      const [r] = await Promise.all([api('/api/putaway?' + new URLSearchParams({ q: $('pw-q').value.trim() })), loadQrGen()]);
+      const [r] = await Promise.all([api('/api/putaway?' + new URLSearchParams({ q: $('pw-q').value.trim(), site: siteParam() })), loadQrGen()]);
       if (seq !== pwSeq) return;
       pwData = r;
       renderPutaway();
@@ -1965,7 +1977,8 @@
       <div class="row urow${u.is_active ? '' : ' inactive'}" data-id="${u.id}">
         <div class="u-main">
           <div class="u-name">${esc(u.full_name)}</div>
-          <div class="u-sub">@${esc(u.username)} · <span class="badge role">${esc(u.role_label)}</span>${u.is_active ? '' : ' <span class="badge off">ĐÃ KHÓA</span>'}</div>
+          <div class="u-sub">@${esc(u.username)} · <span class="badge role">${esc(u.role_label)}</span>
+            <span class="badge st">${u.site_code ? 'Site ' + esc(u.site_code) : 'Tất cả site'}</span>${u.is_active ? '' : ' <span class="badge off">ĐÃ KHÓA</span>'}</div>
         </div>
         <div class="chev">›</div>
       </div>`).join('') || '<div class="empty">Chưa có tài khoản</div>';
@@ -1997,6 +2010,10 @@
     $('uf-username').value = u ? u.username : '';
     $('uf-username').disabled = !!u;
     $('uf-name').value = u ? u.full_name : '';
+    $('uf-site').innerHTML = '<option value="">Tất cả site</option>'
+      + SITES.map((x) => `<option value="${esc(x.code)}">${esc(x.name)}</option>`).join('')
+      + (u && u.site_code && !SITES.some((x) => x.code === u.site_code) ? `<option value="${esc(u.site_code)}">${esc(u.site_code)}</option>` : '');
+    $('uf-site').value = u ? (u.site_code || '') : '';
     $('uf-role').innerHTML = Object.entries(roles).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
     $('uf-role').value = u ? u.role : 'nhanvien';
     $('uf-role').disabled = !!isSelf;
@@ -2017,16 +2034,17 @@
   $('user-form').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const btn = $('uf-save');
-    const name = $('uf-name').value.trim(), role = $('uf-role').value, pw = $('uf-pass').value;
+    const name = $('uf-name').value.trim(), role = $('uf-role').value, pw = $('uf-pass').value, site = $('uf-site').value;
     let req;
     if (!editing) {
       const username = $('uf-username').value.trim();
       if (!username || !name || !pw) { $('uf-err').textContent = 'Nhập đủ username, họ tên và mật khẩu'; return; }
-      req = api('/api/users', { method: 'POST', body: { username, full_name: name, role, password: pw } });
+      req = api('/api/users', { method: 'POST', body: { username, full_name: name, role, site_code: site, password: pw } });
     } else {
       const body = {};
       if (name !== editing.full_name) body.full_name = name;
       if (role !== editing.role) body.role = role;
+      if (site !== (editing.site_code || '')) body.site_code = site;
       if (ufActive !== editing.is_active) body.is_active = ufActive;
       if (pw) body.password = pw;
       if (!Object.keys(body).length) { closeUserForm(); return; }
@@ -2051,6 +2069,44 @@
 
   // ---------------------------------------------------------------- khởi động
   let CFG = { dc_name: 'DC Phú Thọ', dc_site: '', wh_code: 'PTD' };
+  let SITES = [];              // [{code, name, n}]
+  let curSite = '';            // '' = tất cả site
+
+  // Site áp dụng cho các trang dữ liệu: nhân viên bị khóa theo site của tài khoản
+  function siteParam() { return (session && session.user.site_code) || curSite || ''; }
+
+  async function loadSites() {
+    const pick = $('site-pick'), fixed = $('site-fixed');
+    try {
+      const r = await api('/api/sites');
+      SITES = r.rows || [];
+    } catch (e) { SITES = []; }
+    const mine = session.user.site_code;
+    if (mine) {                                   // tài khoản gắn 1 site
+      const s = SITES.find((x) => x.code === mine);
+      fixed.textContent = 'Site ' + (s ? s.name : mine);
+      fixed.classList.remove('hidden');
+      pick.classList.add('hidden');
+      return;
+    }
+    fixed.classList.add('hidden');
+    if (SITES.length < 2) { pick.classList.add('hidden'); curSite = ''; return; }
+    const saved = store.get('pa.site') || '';
+    curSite = SITES.some((x) => x.code === saved) ? saved : '';
+    pick.innerHTML = `<option value="">Tất cả site (${SITES.length})</option>`
+      + SITES.map((x) => `<option value="${esc(x.code)}">${esc(x.name)}</option>`).join('');
+    pick.value = curSite;
+    pick.classList.remove('hidden');
+  }
+
+  $('site-pick').addEventListener('change', () => {
+    curSite = $('site-pick').value;
+    store.set('pa.site', curSite);
+    if (currentTab === 'log') loadLogs();
+    else if (currentTab === 'wms') loadWms();
+    else if (currentTab === 'pw') loadPutaway();
+    else if (currentTab === 'dash') loadDashboard();
+  });
 
   async function loadConfig() {
     try { CFG = await api('/api/config'); } catch (e) { /* giữ giá trị mặc định */ }

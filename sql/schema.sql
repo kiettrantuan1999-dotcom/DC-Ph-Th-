@@ -12,6 +12,7 @@ create table if not exists app_users (
   username      text        not null,
   password_hash text        not null,          -- bcrypt, tạo bằng manage_users.py
   full_name     text        not null,
+  site_code     text,                                   -- NULL = xem tất cả site
   role          text        not null default 'nhanvien'
                 check (role in ('admin', 'chuyenvien', 'nhanvien')),
   is_active     boolean     not null default true,
@@ -29,7 +30,8 @@ create table if not exists pallet_scans (
   staff_name     text        not null,         -- nhân viên thực hiện scan
   user_id        bigint      references app_users (id),
   username       text        not null,         -- tài khoản đăng nhập trên PDA
-  prev_location  text                          -- vị trí cũ (với thao tác CHUYEN)
+  prev_location  text,                         -- vị trí cũ (với thao tác CHUYEN)
+  site_code      text                          -- site của người scan
 );
 create index if not exists pallet_scans_time_idx      on pallet_scans (scanned_at desc);
 create index if not exists pallet_scans_pa_idx        on pallet_scans (pa_code, scanned_at desc);
@@ -45,9 +47,11 @@ create table if not exists pallet_locations (
   location_code text        not null,
   updated_at    timestamptz not null default now(),
   staff_name    text        not null,
-  username      text        not null
+  username      text        not null,
+  site_code     text
 );
-create index if not exists pallet_locations_loc_idx on pallet_locations (location_code);
+create index if not exists pallet_locations_loc_idx  on pallet_locations (location_code);
+create index if not exists pallet_locations_site_idx on pallet_locations (site_code);
 
 -- Tồn kho theo Bin lấy từ WMS Supra (bản mới nhất, thay toàn bộ mỗi lần đồng bộ)
 create table if not exists wms_bin_stocks (
@@ -69,12 +73,15 @@ create table if not exists wms_bin_stocks (
   uom           text,          -- Base Units
   mfg_date      text,          -- NSX
   exp_date      text,          -- HSD
-  zone_code     text
+  zone_code     text,
+  site_code     text           -- mã site lấy từ "DC Site" (VD 1379)
 );
 create index if not exists wms_bin_stocks_vtlt_idx on wms_bin_stocks (vtlt_code);
 create index if not exists wms_bin_stocks_ptlt_idx on wms_bin_stocks (ptlt_code);
 create index if not exists wms_bin_stocks_sku_idx  on wms_bin_stocks (sku);
 create index if not exists wms_bin_stocks_pa_idx   on wms_bin_stocks ((coalesce(ptlt_code, vtlt_code)));
+create index if not exists wms_bin_stocks_site_idx on wms_bin_stocks (site_code);
+create index if not exists pallet_scans_site_idx   on pallet_scans (site_code, scanned_at desc);
 
 -- Lịch sử các lần đồng bộ
 create table if not exists wms_sync_log (
