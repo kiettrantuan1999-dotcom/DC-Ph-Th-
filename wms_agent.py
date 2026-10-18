@@ -110,12 +110,15 @@ def check() -> bool:
     except wms.WmsError as exc:
         print(f"  Session WMS: LỖI – {exc}")
         ok = False
-    try:
-        r = requests.get("https://api-supra.winmart.vn/", timeout=15)
-        print(f"  Kết nối WMS: OK (HTTP {r.status_code})")
+    try:   # gọi đúng service của kho (trang gốc api-supra không mở cho GET)
+        base = wms._session()["base"]
+        r = requests.get(base + "/api/v1/clients", timeout=20)
+        print(f"  Kết nối WMS ({base.rsplit('/', 1)[-1]}): OK (HTTP {r.status_code})")
     except requests.RequestException as exc:
-        print(f"  Kết nối WMS: LỖI – {type(exc).__name__}")
+        print(f"  Kết nối WMS: LỖI – {type(exc).__name__} (máy phải ở mạng công ty hoặc bật VPN)")
         ok = False
+    except Exception as exc:
+        print(f"  Kết nối WMS: chưa kiểm tra được – {exc}")
     return ok
 
 
