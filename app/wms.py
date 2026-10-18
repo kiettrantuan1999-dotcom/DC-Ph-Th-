@@ -26,7 +26,7 @@ from . import config
 
 SHEET_ID = os.environ.get("WMS_SESSION_SHEET_ID", "1h6veWy2fTGeKnUJIWp_WZzAqDE-RKer4nwk1hB58Sr4")
 # Có thể khai báo nhiều ô, cách nhau dấu phẩy: WMS_SESSION_RANGE=Config!B3,Config!B4
-SESSION_RANGES = [c.strip() for c in os.environ.get("WMS_SESSION_RANGE", "Config!B2").split(",") if c.strip()]
+SESSION_RANGES = [c.strip() for c in os.environ.get("WMS_SESSION_RANGE", "").split(",") if c.strip()] or ["Config!B2"]
 SHEET_RANGE = SESSION_RANGES[0]
 WH_CODE = os.environ.get("WMS_WH_CODE", "PTD")
 WH_REQUIRED = bool(os.environ.get("WMS_WH_CODE"))  # có khai báo kho → bắt buộc đúng kho đó
