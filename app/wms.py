@@ -54,7 +54,22 @@ WH_REQUIRED = bool(os.environ.get("WMS_WH_CODE"))  # có khai báo kho → bắt
 API_BASE = os.environ.get("WMS_API_BASE", "")
 SESSION_TTL = 600  # giây – đọc lại session từ Sheet tối đa 10 phút/lần
 
-HEADER_KEYS = ["apisid", "authorization", "scid", "sid", "token", "usid", "x-signature", "x-signature-nonce"]
+# Header bắt buộc của mọi hệ thống WMS; riêng sft3 cần thêm chữ ký (SIGN_KEYS)
+HEADER_KEYS = ["apisid", "authorization", "scid", "sid", "token", "usid"]
+SIGN_KEYS = ["x-signature", "x-signature-nonce"]
+
+# Mỗi hệ thống một đường dẫn báo cáo tồn Bin riêng
+REPORTS = {
+    "sft3": {   # kho PTD, BD1E1… – service api-supra.winmart.vn/sft3-<kho>
+        "path": "/api/v1/report/stock/exportBinStocks",
+        "params": {"FromWH": "true", "Content": "", "ClientCode": "WIN", "WhCode": "{wh}",
+                   "WarehouseSiteId": "", "PickupMethod": "", "IsConsign": "false"},
+    },
+    "legacy": {  # kho BDD… – service api-supra.winmart.vn/<kho>
+        "path": "/api/v1/report/exportBinInventory",
+        "params": {"Content": "", "ClientCode": "", "WhCode": "{wh}", "WarehouseSiteId": "", "WhSite": ""},
+    },
+}
 GOOGLE_SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets.readonly",
     "https://www.googleapis.com/auth/drive.readonly",
@@ -170,13 +185,18 @@ def _pick_session(bundle: dict, cell: str) -> dict:
         headers = (s or {}).get("headers") or {}
         if all(headers.get(k) for k in HEADER_KEYS):
             wh = (headers.get("warehouse") or kho).strip()
-            # Báo cáo tồn Bin nằm ở dịch vụ sft3-<kho>; URL trong file session có thể thuộc dịch vụ khác
-            m = re.match(r"(https://api-supra\.winmart\.vn/sft3-[a-z0-9]+)", (s or {}).get("request_url", "") or "")
+            url = (s or {}).get("request_url", "") or ""
+            # Service của kho: ưu tiên sft3-<kho>, sau đó /<kho> (hệ thống cũ như BDD)
+            m = re.match(rf"(https://api-supra\.winmart\.vn/(?:sft3-{wh.lower()}|{wh.lower()}))(?:/|$)", url)
             base = (API_BASE if (API_BASE and not SESSION_WH) else "") \
                 or (m.group(1) if m else f"https://api-supra.winmart.vn/sft3-{wh.lower()}")
+            kieu = "sft3" if "/sft3-" in base else "legacy"
+            dung = {k: headers[k] for k in HEADER_KEYS}
+            dung.update({k: headers[k] for k in SIGN_KEYS if headers.get(k)})
+            if kieu == "sft3" and not all(headers.get(k) for k in SIGN_KEYS):
+                continue   # hệ thống sft3 bắt buộc có chữ ký
             return {
-                "cell": cell, "wh": wh, "base": base,
-                "headers": {k: headers[k] for k in HEADER_KEYS},
+                "cell": cell, "wh": wh, "base": base, "kieu": kieu, "headers": dung,
                 "captured_at": (s or {}).get("captured_at", ""),
             }
     có = ", ".join(w for w, x in by_wh.items() if all((x.get("headers") or {}).get(k) for k in HEADER_KEYS)) or "(không có)"
@@ -243,11 +263,9 @@ def wms_get(path: str, params: dict, cell: str = "") -> requests.Response:
 
 def export_bin_stocks(cell: str = "") -> tuple[bytes, str]:
     """Báo cáo tồn kho theo Bin của 1 kho (file Excel gốc từ WMS)."""
-    wh = _session(cell)["wh"]
-    r = wms_get("/api/v1/report/stock/exportBinStocks", {
-        "FromWH": "true", "Content": "", "ClientCode": "WIN", "WhCode": wh,
-        "WarehouseSiteId": "", "PickupMethod": "", "IsConsign": "false",
-    }, cell)
+    s = _session(cell)
+    wh, bao_cao = s["wh"], REPORTS[s.get("kieu", "sft3")]
+    r = wms_get(bao_cao["path"], {k: v.replace("{wh}", wh) for k, v in bao_cao["params"].items()}, cell)
     if "spreadsheetml" not in r.headers.get("content-type", ""):
         raise WmsError("WMS không trả về file Excel – có thể session đã hết hạn")
     name = r.headers.get("X-Download-FileName") or ""
