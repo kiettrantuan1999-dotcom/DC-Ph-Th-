@@ -405,10 +405,10 @@
   <div class="login-art">
     <div class="la-brand"><div class="brand-logo">PA</div>Central Ops · WMS</div>
     <div>
-      <h2>Hệ thống định vị pallet<br>DC Phú Thọ</h2>
+      <h2>Hệ thống định vị pallet<br><span id="la-dc">DC Phú Thọ</span></h2>
       <p>Định vị pallet nhập, chuyển vị trí lưu trữ, đối chiếu tồn kho theo Bin với WMS Supra và in phiếu định vị.</p>
     </div>
-    <div class="la-foot">Kho PTD · 1393 – WMP_AMBIENT_PHUTHO</div>
+    <div class="la-foot" id="la-site">&nbsp;</div>
   </div>
   <div class="login-side">
     <form class="login-box" id="login-form" autocomplete="off">
@@ -440,13 +440,13 @@
       <div class="sb-group">Quản trị</div>
       <button type="button" class="nav-btn" data-tab="users" data-perm="users" data-crumb="Quản trị" data-title="Người dùng &amp; phân quyền"><svg class="ic"><use href="#i-users"/></svg>Người dùng</button>
     </nav>
-    <div class="sb-foot">Kho PTD · DC Phú Thọ</div>
+    <div class="sb-foot" id="sb-foot">&nbsp;</div>
   </aside>
 
   <div class="main-col">
     <header class="topbar">
       <div class="tb-title"><div class="crumb" id="page-crumb"></div><h1 id="page-title"></h1></div>
-      <span class="wh-chip"><i></i>PTD · DC Phú Thọ</span>
+      <span class="wh-chip"><i></i><span id="wh-label">&nbsp;</span></span>
       <button type="button" class="tb-btn" id="btn-device" title="Đổi chế độ quét: PDA (đầu scan) / Camera">📟 PDA</button>
       <div class="tb-user">
         <div class="avatar" id="hdr-avatar"></div>
@@ -522,7 +522,7 @@
     <main id="tab-dash" class="tab wide hidden">
       <div class="wms-bar">
         <div class="wms-info">
-          <b>Số lượng PA nhập theo ngày · DC Phú Thọ</b>
+          <b>Số lượng PA nhập theo ngày · <span class="dc-name"></span></b>
           <span id="dash-meta">Đang tải…</span>
         </div>
         <div class="filters">
@@ -1904,7 +1904,7 @@
       <div class="ps-head">
         <div>
           <h1>PHIẾU ĐỊNH VỊ PALLET TRÊN WMS</h1>
-          <div class="ps-sub">DC Phú Thọ · In lúc ${esc(now)} · Người in: ${esc(session.user.full_name)}<br>
+          <div class="ps-sub">${esc(CFG.dc_name)} · In lúc ${esc(now)} · Người in: ${esc(session.user.full_name)}<br>
             Dữ liệu WMS lúc ${esc(r.wms_synced_at || '—')} · <b>${r.rows.length} PA · ${r.locations} vị trí</b> · Sắp xếp theo vị trí A→Z</div>
         </div>
         <div class="ps-sign">Người thực hiện: ............................<br>Ký tên: ........................................</div>
@@ -2050,7 +2050,19 @@
   });
 
   // ---------------------------------------------------------------- khởi động
+  let CFG = { dc_name: 'DC Phú Thọ', dc_site: '', wh_code: 'PTD' };
+
+  async function loadConfig() {
+    try { CFG = await api('/api/config'); } catch (e) { /* giữ giá trị mặc định */ }
+    $('la-dc').textContent = CFG.dc_name;
+    $('la-site').textContent = `Kho ${CFG.wh_code}${CFG.dc_site ? ' · ' + CFG.dc_site : ''}`;
+    $('sb-foot').textContent = `Kho ${CFG.wh_code} · ${CFG.dc_name}`;
+    $('wh-label').textContent = `${CFG.wh_code} · ${CFG.dc_name}`;
+    document.querySelectorAll('.dc-name').forEach((el) => { el.textContent = CFG.dc_name; });
+  }
+
   (async () => {
+    await loadConfig();
     if (device !== 'pda' && device !== 'camera') device = await detectDevice();
     applyDevice();
     const token = store.get('pa.token');

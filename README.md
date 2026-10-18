@@ -185,3 +185,32 @@ Biến `WMS_SYNC_MODE` quyết định ai gọi WMS:
 
 - `agent`: app chỉ tạo yêu cầu, máy đồng bộ thực hiện. Trên Railway, app tự chọn chế độ này.
 - `direct`: server gọi WMS ngay. Dùng khi chạy app trên máy ở Việt Nam.
+
+## Nhân bản cho DC khác (ví dụ DC Bình Dương)
+
+Mỗi DC chạy **một hệ thống riêng**: database Supabase riêng, service Railway riêng (link web riêng),
+máy đồng bộ riêng – nhưng dùng **chung mã nguồn** này. Không phải sửa code, chỉ đổi biến môi trường.
+
+| Biến | DC Phú Thọ | DC Bình Dương |
+|---|---|---|
+| `DATABASE_URL` | Supabase project PTD | Supabase project BD (project mới) |
+| `SECRET_KEY` | riêng | riêng (tạo mới) |
+| `APP_DC_NAME` | `DC Phú Thọ` | `DC Bình Dương` |
+| `APP_DC_SITE` | `1393 – WMP_AMBIENT_PHUTHO` | mã site của BD |
+| `WMS_WH_CODE` | `PTD` | `BD1E1` |
+| `WMS_API_BASE` | *(mặc định `…/sft3-ptd`)* | `https://api-supra.winmart.vn/sft3-bd1e1` |
+| `WMS_SESSION_RANGE` | `Config!B2` | `Config!B3` |
+
+**Các bước:**
+
+1. **Supabase:** tạo project mới, chạy `sql/schema.sql`, lấy chuỗi kết nối Session pooler.
+2. **Railway:** tạo service mới từ cùng GitHub repo, điền các biến ở bảng trên, **Generate Domain** để có link web riêng.
+3. **Tài khoản đầu tiên:** trên máy tính, trỏ `.env` vào `DATABASE_URL` của BD rồi chạy
+   `python manage_users.py add admin "Quản trị BD" --role admin`.
+4. **Session WMS:** mở WMS của BD, xuất session bằng extension Supra Session Capture, dán link Drive vào
+   **ô B3** của Google Sheet Config, và share file session cho service account.
+5. **Máy đồng bộ:** tạo gói cài riêng cho BD (xem `agent/README.md`), trong `.env` đặt `APP_URL` là link
+   Railway của BD và `WMS_AGENT_TOKEN` lấy theo `SECRET_KEY` của BD. Máy chạy phải vào được WMS
+   (trong mạng công ty hoặc VPN).
+
+Khi sửa code: push 1 lần lên GitHub, **cả hai service Railway đều tự deploy lại**.

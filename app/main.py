@@ -124,6 +124,12 @@ def index():
     return FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-cache"})
 
 
+@app.get("/api/config")
+def app_config():
+    """Tên DC / mã kho để giao diện hiển thị – không cần đăng nhập."""
+    return {"dc_name": config.DC_NAME, "dc_site": config.DC_SITE, "wh_code": wms.WH_CODE}
+
+
 @app.get("/healthz", include_in_schema=False)
 def healthz():
     db.fetch_one("select 1 as ok")

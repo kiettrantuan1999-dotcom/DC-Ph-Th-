@@ -25,6 +25,10 @@ SESSION_HOURS = int(os.environ.get("SESSION_HOURS", "12"))
 DB_POOL_MAX = int(os.environ.get("DB_POOL_MAX", "5"))
 TZ = ZoneInfo(os.environ.get("APP_TZ", "Asia/Ho_Chi_Minh"))
 
+# Tên trung tâm phân phối hiển thị trên giao diện và phiếu in (mỗi DC một giá trị)
+DC_NAME = os.environ.get("APP_DC_NAME", "DC Phú Thọ")
+DC_SITE = os.environ.get("APP_DC_SITE", "1393 – WMP_AMBIENT_PHUTHO")
+
 # Regex kiểm tra định dạng mã (để trống = không kiểm tra). VD: PA_PATTERN=PA\d{8}
 PA_RE = re.compile(os.environ["PA_PATTERN"]) if os.environ.get("PA_PATTERN") else None
 LOC_RE = re.compile(os.environ["LOC_PATTERN"]) if os.environ.get("LOC_PATTERN") else None
