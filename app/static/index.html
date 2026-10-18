@@ -622,7 +622,7 @@
       <div id="wms-list" class="cards"></div>
       <div class="tbl-wrap"><table class="tbl" id="wms-table">
         <thead><tr>
-          <th>Mã VTLT</th><th>Mã PTLT</th><th>SKU</th><th>Tên sản phẩm</th><th class="r">Tồn Bin</th><th class="r">Chờ xuất</th>
+          <th>DC Site</th><th>Mã VTLT</th><th>Mã PTLT</th><th>SKU</th><th>Tên sản phẩm</th><th class="r">Tồn Bin</th><th class="r">Chờ xuất</th>
           <th>ĐVT</th><th>Mã PO</th><th>Ngày nhận</th><th>HSD</th><th>Tính chất LT</th><th>Loại LT</th>
         </tr></thead>
         <tbody></tbody>
@@ -1536,7 +1536,8 @@
     const loc = r.ptlt_code ? r.vtlt_code : '';
     return `<div class="row">
       <div class="l1"><span>${esc(pa)}</span>${loc ? `<span class="arrow">@</span><span class="loc">${esc(loc)}</span>` : ''}
-        <span class="badge st${isWaiting(r.lt_status) ? ' wait' : ''}">${esc(r.lt_status || '')}</span></div>
+        <span class="badge st${isWaiting(r.lt_status) ? ' wait' : ''}">${esc(r.lt_status || '')}</span>
+        ${r.site_code ? `<span class="badge role">Site ${esc(r.site_code)}</span>` : ''}</div>
       <div class="l2">${esc(r.sku)} · ${esc(r.product_name)}</div>
       <div class="l2"><b>${fmtQty(r.qty)} ${esc(r.uom || '')}</b> · PO ${esc(r.po_code || '')} · HSD ${esc(r.exp_date || '')}</div>
     </div>`;
@@ -1544,6 +1545,7 @@
 
   function wmsRowHtml(r) {
     return `<tr>
+      <td class="muted" title="${esc(r.site || '')}">${esc(r.site_code || '')}</td>
       <td class="code loc">${esc(r.vtlt_code)}</td>
       <td class="code">${esc(r.ptlt_code)}</td>
       <td class="code">${esc(r.sku)}</td>
@@ -1570,12 +1572,12 @@
       const more = r.total > shown ? ` (hiện ${shown} dòng đầu – xuất Excel để lấy đủ)` : '';
       $('wms-summary').textContent = `${r.total.toLocaleString('vi-VN')} dòng · ${r.pallets.toLocaleString('vi-VN')} PA · tồn ${fmtQty(r.qty)}${more}`;
       $('wms-list').innerHTML = shown ? r.rows.map(wmsCardHtml).join('') : '<div class="empty">Không có dữ liệu</div>';
-      tbody.innerHTML = shown ? r.rows.map(wmsRowHtml).join('') : '<tr><td colspan="12" class="empty">Không có dữ liệu</td></tr>';
+      tbody.innerHTML = shown ? r.rows.map(wmsRowHtml).join('') : '<tr><td colspan="13" class="empty">Không có dữ liệu</td></tr>';
     } catch (e) {
       if (seq !== wmsSeq || onAuthFail(e)) return;
       $('wms-summary').textContent = ' ';
       $('wms-list').innerHTML = `<div class="empty err">${esc(e.message)}</div>`;
-      tbody.innerHTML = `<tr><td colspan="12" class="empty err">${esc(e.message)}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="13" class="empty err">${esc(e.message)}</td></tr>`;
     }
   }
 
