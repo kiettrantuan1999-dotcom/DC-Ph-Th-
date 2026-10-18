@@ -74,6 +74,7 @@ create table if not exists wms_bin_stocks (
   mfg_date      text,          -- NSX
   exp_date      text,          -- HSD
   zone_code     text,
+  category      text,          -- Ngành hàng (một số kho mới có)
   site_code     text           -- mã site lấy từ "DC Site" (VD 1379)
 );
 create index if not exists wms_bin_stocks_vtlt_idx on wms_bin_stocks (vtlt_code);

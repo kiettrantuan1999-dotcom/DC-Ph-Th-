@@ -622,7 +622,7 @@
       <div id="wms-list" class="cards"></div>
       <div class="tbl-wrap"><table class="tbl" id="wms-table">
         <thead><tr>
-          <th>DC Site</th><th>Mã VTLT</th><th>Mã PTLT</th><th>SKU</th><th>Tên sản phẩm</th><th class="r">Tồn Bin</th><th class="r">Chờ xuất</th>
+          <th>DC Site</th><th>Mã VTLT</th><th>Mã PTLT</th><th>SKU</th><th>Tên sản phẩm</th><th>Ngành hàng</th><th class="r">Tồn Bin</th><th class="r">Chờ xuất</th>
           <th>ĐVT</th><th>Mã PO</th><th>Ngày nhận</th><th>HSD</th><th>Tính chất LT</th><th>Loại LT</th>
         </tr></thead>
         <tbody></tbody>
@@ -1550,6 +1550,7 @@
       <td class="code">${esc(r.ptlt_code)}</td>
       <td class="code">${esc(r.sku)}</td>
       <td class="wrap">${esc(r.product_name)}</td>
+      <td class="muted">${esc(r.category || '')}</td>
       <td class="r"><b>${fmtQty(r.qty)}</b></td>
       <td class="r muted">${fmtQty(r.qty_pending)}</td>
       <td class="muted">${esc(r.uom)}</td>
@@ -1572,12 +1573,12 @@
       const more = r.total > shown ? ` (hiện ${shown} dòng đầu – xuất Excel để lấy đủ)` : '';
       $('wms-summary').textContent = `${r.total.toLocaleString('vi-VN')} dòng · ${r.pallets.toLocaleString('vi-VN')} PA · tồn ${fmtQty(r.qty)}${more}`;
       $('wms-list').innerHTML = shown ? r.rows.map(wmsCardHtml).join('') : '<div class="empty">Không có dữ liệu</div>';
-      tbody.innerHTML = shown ? r.rows.map(wmsRowHtml).join('') : '<tr><td colspan="13" class="empty">Không có dữ liệu</td></tr>';
+      tbody.innerHTML = shown ? r.rows.map(wmsRowHtml).join('') : '<tr><td colspan="14" class="empty">Không có dữ liệu</td></tr>';
     } catch (e) {
       if (seq !== wmsSeq || onAuthFail(e)) return;
       $('wms-summary').textContent = ' ';
       $('wms-list').innerHTML = `<div class="empty err">${esc(e.message)}</div>`;
-      tbody.innerHTML = `<tr><td colspan="13" class="empty err">${esc(e.message)}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="14" class="empty err">${esc(e.message)}</td></tr>`;
     }
   }
 

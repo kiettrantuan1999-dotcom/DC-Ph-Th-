@@ -27,7 +27,10 @@ COLUMNS = [
     ("Mã VTLT", "vtlt_code"), ("Mã PTLT", "ptlt_code"), ("Loại LT", "lt_type"), ("Tính chất LT", "lt_status"),
     ("Loại hàng Pallet", "pallet_type"), ("Tồn Bin", "qty"), ("Tồn chờ Xuất", "qty_pending"),
     ("Base Units", "uom"), ("NSX", "mfg_date"), ("HSD", "exp_date"), ("ZoneCode", "zone_code"),
+    ("Ngành hàng", "category"),
 ]
+# Cột bắt buộc phải có trong file; các cột khác thiếu thì để trống
+REQUIRED = ["DC Site", "SKU", "Mã VTLT", "Tính chất LT", "Tồn Bin"]
 NUMERIC = {"qty", "qty_pending"}
 OUT_COLS = ", ".join(col for _, col in COLUMNS) + ", site_code"
 SITE_IDX = [c for _, c in COLUMNS].index("site")
@@ -60,12 +63,12 @@ def store(log_id: int, content: bytes, file_name: str, part: int = 1, parts: int
         except Exception:
             raise wms.WmsError("File nhận từ WMS không đọc được (không phải Excel?)")
         idx = {h: i for i, h in enumerate(header)}
-        missing = [h for h, _ in COLUMNS if h not in idx]
+        missing = [h for h in REQUIRED if h not in idx]
         if missing:
-            raise wms.WmsError("File WMS thiếu cột: " + ", ".join(missing))
+            raise wms.WmsError("File WMS thiếu cột bắt buộc: " + ", ".join(missing))
         rows = []
         for r in data:
-            row = [_cell(r[idx[h]] if idx[h] < len(r) else None, col) for h, col in COLUMNS]
+            row = [_cell(r[idx[h]] if h in idx and idx[h] < len(r) else None, col) for h, col in COLUMNS]
             site = row[SITE_IDX] or ""
             row.append(site.split(" - ")[0].strip() or None)   # "1379 - WMP_..." → "1379"
             rows.append(row)
