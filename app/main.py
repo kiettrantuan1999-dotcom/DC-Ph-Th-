@@ -624,8 +624,10 @@ async def agent_result(job_id: int, request: Request, _: None = Depends(require_
     """Máy đồng bộ gửi lên file Excel lấy từ WMS (body = nội dung file)."""
     content = await request.body()
     file_name = request.headers.get("x-file-name", "")[:200] or "REPORT_BIN_INVENTORY.xlsx"
+    part = int(request.headers.get("x-part", "1") or 1)
+    parts = int(request.headers.get("x-parts", "1") or 1)
     try:
-        n = await run_in_threadpool(wms_sync.store, job_id, content, file_name)
+        n = await run_in_threadpool(wms_sync.store, job_id, content, file_name, part, parts)
     except wms.WmsError as exc:
         raise HTTPException(422, str(exc))
     return {"ok": True, "rows": n}

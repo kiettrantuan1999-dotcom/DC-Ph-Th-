@@ -25,9 +25,13 @@ from google.oauth2 import service_account
 from . import config
 
 SHEET_ID = os.environ.get("WMS_SESSION_SHEET_ID", "1h6veWy2fTGeKnUJIWp_WZzAqDE-RKer4nwk1hB58Sr4")
-SHEET_RANGE = os.environ.get("WMS_SESSION_RANGE", "Config!B2")
+# Có thể khai báo nhiều ô, cách nhau dấu phẩy: WMS_SESSION_RANGE=Config!B3,Config!B4
+SESSION_RANGES = [c.strip() for c in os.environ.get("WMS_SESSION_RANGE", "Config!B2").split(",") if c.strip()]
+SHEET_RANGE = SESSION_RANGES[0]
 WH_CODE = os.environ.get("WMS_WH_CODE", "PTD")
-API_BASE = os.environ.get("WMS_API_BASE", f"https://api-supra.winmart.vn/sft3-{WH_CODE.lower()}")
+WH_REQUIRED = bool(os.environ.get("WMS_WH_CODE"))  # có khai báo kho → bắt buộc đúng kho đó
+# Để trống = tự suy từ chính file session (mỗi kho một đường dẫn)
+API_BASE = os.environ.get("WMS_API_BASE", "")
 SESSION_TTL = 600  # giây – đọc lại session từ Sheet tối đa 10 phút/lần
 
 HEADER_KEYS = ["apisid", "authorization", "scid", "sid", "token", "usid", "x-signature", "x-signature-nonce"]
@@ -106,11 +110,12 @@ def _http_get(url: str, what: str, **kw) -> requests.Response:
         raise WmsError(f"Không kết nối được {what}: {type(exc).__name__}")
 
 
-def _read_session_bundle() -> dict:
+def _read_session_bundle(cell: str = "") -> dict:
+    cell = cell or SHEET_RANGE
     token = _google_token()
     auth = {"Authorization": f"Bearer {token}"}
     r = _http_get(
-        f"https://sheets.googleapis.com/v4/spreadsheets/{SHEET_ID}/values/{quote(SHEET_RANGE)}",
+        f"https://sheets.googleapis.com/v4/spreadsheets/{SHEET_ID}/values/{quote(cell)}",
         "Google Sheets", headers=auth, timeout=30,
     )
     if r.status_code != 200:
@@ -118,7 +123,7 @@ def _read_session_bundle() -> dict:
     values = r.json().get("values") or [[""]]
     link = (values[0][0] if values and values[0] else "").strip()
     if not link:
-        raise WmsError(f"Ô {SHEET_RANGE} đang trống – dán link Drive của file session vào đó")
+        raise WmsError(f"Ô {cell} đang trống – dán link Drive của file session vào đó")
 
     r = _http_get(
         f"https://www.googleapis.com/drive/v3/files/{_drive_file_id(link)}",
@@ -132,81 +137,100 @@ def _read_session_bundle() -> dict:
         raise WmsError("File session trên Drive không phải JSON hợp lệ")
 
 
-def _pick_headers(bundle: dict) -> tuple[dict, str]:
-    """Ưu tiên session đúng kho (sessions_by_warehouse.sft.PTD), sau đó tới sessions.sft."""
-    candidates = [
-        ((bundle.get("sessions_by_warehouse") or {}).get("sft") or {}).get(WH_CODE),
-        (bundle.get("sessions") or {}).get("sft"),
-        bundle if "headers" in bundle else None,
-    ]
+def _pick_session(bundle: dict, cell: str) -> dict:
+    """Chọn session 'sft' trong file; lấy luôn mã kho và đường dẫn API của kho đó."""
+    by_wh = (bundle.get("sessions_by_warehouse") or {}).get("sft") or {}
+    candidates = [by_wh.get(WH_CODE)]
+    if not WH_REQUIRED:   # không khai báo kho cụ thể → lấy session nào dùng được
+        candidates += [(bundle.get("sessions") or {}).get("sft"), bundle if "headers" in bundle else None]
+        candidates += list(by_wh.values())
     for s in candidates:
         headers = (s or {}).get("headers") or {}
         if all(headers.get(k) for k in HEADER_KEYS):
-            return {k: headers[k] for k in HEADER_KEYS}, (s or {}).get("captured_at", "")
+            wh = (headers.get("warehouse") or WH_CODE).strip()
+            # Báo cáo tồn Bin nằm ở dịch vụ sft3-<kho>; URL trong file session có thể thuộc dịch vụ khác
+            m = re.match(r"(https://api-supra\.winmart\.vn/sft3-[a-z0-9]+)", (s or {}).get("request_url", "") or "")
+            base = API_BASE or (m.group(1) if m else f"https://api-supra.winmart.vn/sft3-{wh.lower()}")
+            return {
+                "cell": cell, "wh": wh, "base": base,
+                "headers": {k: headers[k] for k in HEADER_KEYS},
+                "captured_at": (s or {}).get("captured_at", ""),
+            }
+    có = ", ".join(w for w, x in by_wh.items() if all((x.get("headers") or {}).get(k) for k in HEADER_KEYS)) or "(không có)"
     raise WmsError(
-        "File session thiếu thông tin đăng nhập WMS (sft). Mở wms-supra.winmart.vn, "
-        f"xuất lại session bằng extension Supra Session Capture rồi dán link mới vào {SHEET_RANGE}"
+        f"File session ở ô {cell} không có session dùng được của kho {WH_CODE}. "
+        f"Kho đang có trong file: {có}. Mở wms-supra.winmart.vn, chuyển sang kho {WH_CODE}, "
+        "xuất lại session bằng extension Supra Session Capture rồi dán link mới vào ô này."
     )
 
 
-_cache: dict = {"headers": None, "captured_at": "", "loaded": 0.0}
+_cache: dict = {}
 _lock = threading.Lock()
 
 
-def _session(force: bool = False) -> dict:
+def _session(cell: str = "", force: bool = False) -> dict:
+    cell = cell or SHEET_RANGE
     with _lock:
-        if force or not _cache["headers"] or time.time() - _cache["loaded"] > SESSION_TTL:
-            headers, captured_at = _pick_headers(_read_session_bundle())
-            _cache.update(headers=headers, captured_at=captured_at, loaded=time.time())
-        return _cache["headers"]
+        hit = _cache.get(cell)
+        if force or not hit or time.time() - hit["loaded"] > SESSION_TTL:
+            hit = _pick_session(_read_session_bundle(cell), cell)
+            hit["loaded"] = time.time()
+            _cache[cell] = hit
+        return hit
 
 
 def session_info() -> dict:
-    _session()
-    return {"captured_at": _cache["captured_at"], "usid": _cache["headers"]["usid"], "source": SHEET_RANGE}
+    """Thông tin session của (các) ô đang cấu hình – dùng khi kiểm tra kết nối."""
+    infos = []
+    for cell in SESSION_RANGES:
+        s = _session(cell)
+        infos.append({"source": cell, "wh": s["wh"], "usid": s["headers"]["usid"], "captured_at": s["captured_at"]})
+    first = infos[0]
+    return {**first, "sources": infos}
 
 
 # ---------------------------------------------------------------- WMS API
 
-def wms_get(path: str, params: dict) -> requests.Response:
-    """GET tới WMS bằng session hiện tại. Session hết hạn → đọc lại Sheet 1 lần rồi thử lại."""
+def wms_get(path: str, params: dict, cell: str = "") -> requests.Response:
+    """GET tới WMS bằng session của ô `cell`. Hết hạn → đọc lại Sheet 1 lần rồi thử lại."""
     for attempt in (0, 1):
-        s = _session(force=attempt == 1)
+        s = _session(cell, force=attempt == 1)
         headers = {
             "accept": "application/json, text/plain, */*",
             "content-type": "application/json",
             "origin": "https://wms-supra.winmart.vn",
             "referer": "https://wms-supra.winmart.vn/",
             "appid": "unknown",
-            "warehouse": WH_CODE,
-            **s,
+            "warehouse": s["wh"],
+            **s["headers"],
         }
-        r = _http_get(API_BASE + path, "WMS", params=params, headers=headers, timeout=120)
+        r = _http_get(s["base"] + path, "WMS", params=params, headers=headers, timeout=120)
         if r.status_code in (401, 403) and attempt == 0:
             continue
         if r.status_code in (401, 403):
             raise WmsError(
                 "Session WMS đã hết hạn. Mở wms-supra.winmart.vn, xuất lại session bằng extension "
-                f"Supra Session Capture rồi dán link mới vào Google Sheet ô {SHEET_RANGE}"
+                f"Supra Session Capture rồi dán link mới vào Google Sheet ô {s['cell']}"
             )
         if r.status_code != 200:
-            raise WmsError(f"WMS trả lỗi HTTP {r.status_code}")
+            raise WmsError(f"WMS trả lỗi HTTP {r.status_code} (kho {s['wh']})")
         return r
     raise AssertionError("unreachable")
 
 
-def export_bin_stocks() -> tuple[bytes, str]:
-    """Báo cáo tồn kho theo Bin của kho (file Excel gốc từ WMS)."""
+def export_bin_stocks(cell: str = "") -> tuple[bytes, str]:
+    """Báo cáo tồn kho theo Bin của 1 kho (file Excel gốc từ WMS)."""
+    wh = _session(cell)["wh"]
     r = wms_get("/api/v1/report/stock/exportBinStocks", {
-        "FromWH": "true", "Content": "", "ClientCode": "WIN", "WhCode": WH_CODE,
+        "FromWH": "true", "Content": "", "ClientCode": "WIN", "WhCode": wh,
         "WarehouseSiteId": "", "PickupMethod": "", "IsConsign": "false",
-    })
+    }, cell)
     if "spreadsheetml" not in r.headers.get("content-type", ""):
         raise WmsError("WMS không trả về file Excel – có thể session đã hết hạn")
     name = r.headers.get("X-Download-FileName") or ""
     if not name:
         m = re.search(r"filename=([^;]+)", r.headers.get("Content-Disposition", ""))
-        name = m.group(1).strip('"') if m else f"REPORT_BIN_INVENTORY_{WH_CODE}.xlsx"
+        name = m.group(1).strip('"') if m else f"REPORT_BIN_INVENTORY_{wh}.xlsx"
     return r.content, name
 
 

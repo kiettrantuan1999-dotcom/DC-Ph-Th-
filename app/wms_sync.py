@@ -48,9 +48,11 @@ def _cell(value, col: str):
     return text or None
 
 
-def store(log_id: int, content: bytes, file_name: str) -> int:
-    """Đọc file Excel WMS, thay toàn bộ wms_bin_stocks, đánh dấu log OK. Trả về số dòng.
-    Lỗi được ghi vào log (status ERROR) rồi ném lại."""
+def store(log_id: int, content: bytes, file_name: str, part: int = 1, parts: int = 1) -> int:
+    """Đọc file Excel WMS rồi ghi vào wms_bin_stocks. Trả về số dòng của file này.
+
+    Nhiều kho (nhiều ô session) → gửi lên thành nhiều phần: phần 1 thay toàn bộ dữ liệu cũ,
+    các phần sau ghi thêm; log chỉ chuyển sang OK ở phần cuối."""
     try:
         try:
             header, data = wms.read_xlsx(content)
@@ -62,14 +64,20 @@ def store(log_id: int, content: bytes, file_name: str) -> int:
             raise wms.WmsError("File WMS thiếu cột: " + ", ".join(missing))
         rows = [[_cell(r[idx[h]] if idx[h] < len(r) else None, col) for h, col in COLUMNS] for r in data]
         with db.transaction() as conn:
-            conn.execute("delete from wms_bin_stocks")
+            if part <= 1:
+                conn.execute("delete from wms_bin_stocks")
             with conn.cursor().copy(f"copy wms_bin_stocks ({OUT_COLS}) from stdin") as cp:
                 for row in rows:
                     cp.write_row(row)
             conn.execute(
-                "update wms_sync_log set finished_at = now(), status = 'OK', row_count = %s, file_name = %s, message = null "
-                "where id = %s",
-                (len(rows), file_name, log_id),
+                """update wms_sync_log
+                   set finished_at = case when %(last)s then now() else finished_at end,
+                       status      = case when %(last)s then 'OK' else 'RUNNING' end,
+                       row_count   = case when %(first)s then %(n)s else coalesce(row_count, 0) + %(n)s end,
+                       file_name   = case when %(first)s then %(f)s else coalesce(file_name, '') || ' + ' || %(f)s end,
+                       message     = null
+                   where id = %(id)s""",
+                {"first": part <= 1, "last": part >= parts, "n": len(rows), "f": file_name, "id": log_id},
             )
         return len(rows)
     except Exception as exc:
@@ -91,13 +99,17 @@ def fail(log_id: int, exc) -> None:
 
 
 def run(log_id: int) -> int:
-    """Chế độ direct: server tự gọi WMS rồi lưu."""
-    try:
-        content, file_name = wms.export_bin_stocks()
-    except Exception as exc:
-        fail(log_id, exc)
-        raise
-    return store(log_id, content, file_name)
+    """Chế độ direct: server tự gọi WMS (lần lượt từng ô session) rồi lưu."""
+    cells = wms.SESSION_RANGES
+    total = 0
+    for i, cell in enumerate(cells, 1):
+        try:
+            content, file_name = wms.export_bin_stocks(cell)
+        except Exception as exc:
+            fail(log_id, exc)
+            raise
+        total += store(log_id, content, file_name, part=i, parts=len(cells))
+    return total
 
 
 # ---------------------------------------------------------------- phía server cho máy đồng bộ

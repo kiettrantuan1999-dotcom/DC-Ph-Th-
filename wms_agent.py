@@ -70,22 +70,29 @@ def poll() -> dict | None:
 
 
 def do_job(job: dict) -> None:
+    """Lấy báo cáo tồn Bin của từng ô session (mỗi ô một kho) rồi gửi lên app."""
     started = time.time()
     job_id = job["id"]
-    try:
-        content, file_name = wms.export_bin_stocks()
-    except Exception as exc:
-        msg = str(exc) if isinstance(exc, wms.WmsError) else f"Lỗi trên máy đồng bộ ({type(exc).__name__})"
-        log.warning("Việc #%s (%s) lỗi khi lấy WMS: %s", job_id, job["by"], msg)
-        if not isinstance(exc, wms.WmsError):
-            log.exception("Chi tiết lỗi")
-        call("POST", f"/api/agent/jobs/{job_id}/error", json={"message": msg})
-        return
-    res = call(
-        "POST", f"/api/agent/jobs/{job_id}/result", timeout=180, data=content,
-        headers={"Content-Type": "application/octet-stream", "X-File-Name": file_name},
-    )
-    log.info("Việc #%s (%s) xong: %s dòng, %.1fs", job_id, job["by"], res.get("rows"), time.time() - started)
+    cells = wms.SESSION_RANGES
+    total = 0
+    for i, cell in enumerate(cells, 1):
+        try:
+            content, file_name = wms.export_bin_stocks(cell)
+        except Exception as exc:
+            msg = str(exc) if isinstance(exc, wms.WmsError) else f"Lỗi trên máy đồng bộ ({type(exc).__name__})"
+            log.warning("Việc #%s (%s) lỗi khi lấy WMS ở %s: %s", job_id, job["by"], cell, msg)
+            if not isinstance(exc, wms.WmsError):
+                log.exception("Chi tiết lỗi")
+            call("POST", f"/api/agent/jobs/{job_id}/error", json={"message": f"{cell}: {msg}"})
+            return
+        res = call(
+            "POST", f"/api/agent/jobs/{job_id}/result", timeout=180, data=content,
+            headers={"Content-Type": "application/octet-stream", "X-File-Name": file_name,
+                     "X-Part": str(i), "X-Parts": str(len(cells))},
+        )
+        total += res.get("rows") or 0
+        log.info("Việc #%s · %s (%s) · %s dòng", job_id, cell, file_name, res.get("rows"))
+    log.info("Việc #%s (%s) xong: %s dòng từ %s kho, %.1fs", job_id, job["by"], total, len(cells), time.time() - started)
 
 
 def check() -> bool:
@@ -98,13 +105,13 @@ def check() -> bool:
         print(f"  App: LỖI – {exc}")
         ok = False
     try:
-        info = wms.session_info()
-        print(f"  Session WMS (Google Sheet {info['source']}): OK – tài khoản {info['usid']}, lưu lúc {info['captured_at']}")
+        for src in wms.session_info()["sources"]:
+            print(f"  Session WMS ({src['source']}, kho {src['wh']}): OK – tài khoản {src['usid']}, lưu lúc {src['captured_at']}")
     except wms.WmsError as exc:
         print(f"  Session WMS: LỖI – {exc}")
         ok = False
     try:
-        r = requests.get(wms.API_BASE + "/", timeout=15)
+        r = requests.get("https://api-supra.winmart.vn/", timeout=15)
         print(f"  Kết nối WMS: OK (HTTP {r.status_code})")
     except requests.RequestException as exc:
         print(f"  Kết nối WMS: LỖI – {type(exc).__name__}")
