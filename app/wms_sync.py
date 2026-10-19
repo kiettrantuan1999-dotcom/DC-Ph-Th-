@@ -123,6 +123,16 @@ def run(log_id: int) -> int:
 
 # ---------------------------------------------------------------- phía server cho máy đồng bộ
 
+def warehouses() -> list[str]:
+    """Danh sách kho mà DC này cần lấy dữ liệu (cho extension trên máy nhân viên).
+    Khai báo WMS_WAREHOUSES=BD1E1,BDD; mặc định suy từ WMS_SESSION_RANGE / WMS_WH_CODE."""
+    raw = os.environ.get("WMS_WAREHOUSES", "")
+    if raw.strip():
+        return [w.strip() for w in raw.split(",") if w.strip()]
+    theo_o = [wms.SESSION_WH[c] for c in wms.SESSION_RANGES if c in wms.SESSION_WH]
+    return theo_o or [wms.WH_CODE]
+
+
 def agent_token() -> str:
     """Token máy đồng bộ dùng để gọi app. Mặc định suy ra từ SECRET_KEY (không cần cấu hình thêm)."""
     import hashlib

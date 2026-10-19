@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Định vị PA – Đồng bộ WMS</title>
+<style>
+  :root { --pri: #1d5fd1; --line: #e1e6ee; --muted: #64748b; --ok: #15803d; --err: #c62828; }
+  body { font: 14px/1.45 "Segoe UI", system-ui, sans-serif; color: #17212f; margin: 0; padding: 16px; width: 420px; }
+  h1 { font-size: 16px; margin: 0 0 2px; }
+  .sub { color: var(--muted); font-size: 12.5px; margin-bottom: 14px; }
+  .box { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+  .box b { font-size: 13px; }
+  label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin: 10px 0 4px; }
+  input { width: 100%; height: 34px; padding: 0 10px; border: 1px solid #cfd6e0; border-radius: 8px; font: inherit; box-sizing: border-box; }
+  button { height: 34px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--pri); color: #fff; font-weight: 600; cursor: pointer; }
+  button.phu { background: #fff; border: 1px solid #cfd6e0; color: #17212f; }
+  .hang { display: flex; gap: 8px; margin-top: 12px; }
+  .trangthai { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; }
+  .cham { width: 9px; height: 9px; border-radius: 50%; background: #94a3b8; }
+  .cham.ok { background: #22c55e; } .cham.loi { background: #ef4444; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px; }
+  td { padding: 4px 0; border-bottom: 1px solid #f1f4f8; }
+  td.kho { font-weight: 700; font-family: ui-monospace, Consolas, monospace; }
+  .muted { color: var(--muted); }
+  pre { background: #f7f9fc; border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 11.5px;
+        max-height: 150px; overflow: auto; margin: 8px 0 0; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+  <h1>Định vị PA – Đồng bộ WMS</h1>
+  <div class="sub" id="dc"></div>
+
+  <div class="box">
+    <div class="trangthai"><span class="cham" id="cham"></span><span id="ketnoi">Đang kiểm tra…</span></div>
+    <div class="muted" id="lancuoi" style="margin-top:4px"></div>
+    <div class="hang">
+      <button id="dongbo">Đồng bộ ngay</button>
+      <button class="phu" id="moWms">Mở WMS</button>
+    </div>
+  </div>
+
+  <div class="box">
+    <b>Session đã lấy được</b>
+    <div class="muted" style="font-size:12px">Mở WMS và chọn kho một lần là extension tự lấy.</div>
+    <table id="bangKho"></table>
+  </div>
+
+  <div class="box">
+    <b>Cấu hình</b>
+    <label for="appUrl">Link app</label>
+    <input id="appUrl" placeholder="https://....up.railway.app">
+    <label for="token">Mã máy đồng bộ</label>
+    <input id="token" placeholder="dán mã do quản trị cấp">
+    <label for="tenMay">Tên hiển thị (tuỳ chọn)</label>
+    <input id="tenMay" placeholder="VD: may-kho-1">
+    <div class="hang"><button id="luu">Lưu</button><span class="muted" id="daLuu"></span></div>
+  </div>
+
+  <div class="box">
+    <b>Nhật ký</b>
+    <pre id="log"></pre>
+  </div>
+<script src="config.js"></script>
+<script src="options.js"></script>
+</body>
+</html>

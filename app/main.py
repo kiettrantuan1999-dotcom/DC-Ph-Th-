@@ -680,7 +680,9 @@ def agent_poll(body: AgentPoll, _: None = Depends(require_agent)):
     wms_sync.heartbeat(body.host, body.auto_minutes, body.version)
     wms_sync.expire_stale()
     job = wms_sync.claim(body.host, body.auto_minutes)
-    return {"job": {"id": job["id"], "by": job["username"]} if job else None}
+    if not job:
+        return {"job": None}
+    return {"job": {"id": job["id"], "by": job["username"], "warehouses": wms_sync.warehouses()}}
 
 
 @app.post("/api/agent/jobs/{job_id}/result", include_in_schema=False)
