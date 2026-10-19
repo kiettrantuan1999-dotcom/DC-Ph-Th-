@@ -359,15 +359,19 @@ def create_move(body: ScanIn, user: dict = Depends(require("move"))):
 LOG_COLS = "id, scanned_at, action, pa_code, location_code, staff_name, username, prev_location"
 EXPORT_MAX = 100_000
 
+# Trạng thái "hiệu lực" của một dòng tồn Bin. Kho dùng hệ thống cũ (BDD) không có "Chờ lưu trữ":
+# PA chưa cất lên vị trí là dòng Loại LT = Pallet, Tính chất LT để trống (mã vị trí = chính mã PA).
+EFF_STATUS = "(case when lt_status is null and lt_type = 'Pallet' then 'Chờ lưu trữ' else lt_status end)"
+
 # Log kèm trạng thái của PA trên WMS (bản đồng bộ mới nhất trong wms_bin_stocks).
 # Mã PA nằm ở Mã PTLT (PA đã cất lên vị trí) hoặc Mã VTLT (PA đang chờ lưu trữ).
 LOG_FROM = """
 from pallet_scans s
 left join lateral (
-    select lt_status, case when ptlt_code is not null then vtlt_code end as wms_loc
+    select __EFF__ as lt_status, case when ptlt_code is not null then vtlt_code end as wms_loc
     from wms_bin_stocks where coalesce(ptlt_code, vtlt_code) = s.pa_code limit 1
 ) w on true
-"""
+""".replace("__EFF__", EFF_STATUS)
 LOG_SELECT = """
 select s.id, s.scanned_at, s.action, s.pa_code, s.location_code, s.staff_name, s.username, s.prev_location,
        w.lt_status as wms_lt_status, w.wms_loc
@@ -481,7 +485,7 @@ DASHBOARD_SQL = r"""
 with pa as (
     select coalesce(ptlt_code, vtlt_code) as pa,
            min(to_date(received_date, 'DD/MM/YYYY')) as d,
-           min(lt_status) as st, count(*) as sku_lines, coalesce(sum(qty), 0) as qty
+           min(__EFF__) as st, count(*) as sku_lines, coalesce(sum(qty), 0) as qty
     from wms_bin_stocks
     where received_date ~ '^\d{2}/\d{2}/\d{4}$' and coalesce(ptlt_code, vtlt_code) is not null
       and (%s::text is null or site_code = %s::text)
@@ -499,7 +503,7 @@ from pa
 where %s::date is null or d >= %s::date
 group by d
 order by d
-"""
+""".replace("__EFF__", EFF_STATUS)
 
 
 @app.get("/api/dashboard")
@@ -534,12 +538,12 @@ join lateral (
     select count(*) as sku_count, sum(qty) as qty, min(sku) as sku, min(product_name) as product_name,
            min(uom) as uom, min(po_code) as po_code, min(received_date) as received_date
     from wms_bin_stocks
-    where coalesce(ptlt_code, vtlt_code) = l.pa_code and lt_status = %s
+    where coalesce(ptlt_code, vtlt_code) = l.pa_code and __EFF__ = %s
     having count(*) > 0
 ) w on true
 {where}
 order by l.location_code, l.pa_code
-"""
+""".replace("__EFF__", EFF_STATUS)
 
 
 @app.get("/api/putaway")
@@ -565,8 +569,8 @@ def putaway_list(
     sc = scope_site(user, site) or None
     not_scanned = db.fetch_one(
         """select count(distinct coalesce(ptlt_code, vtlt_code)) as n from wms_bin_stocks w
-           where lt_status = %s and (%s::text is null or w.site_code = %s::text) and not exists (
-               select 1 from pallet_locations l where l.pa_code = coalesce(w.ptlt_code, w.vtlt_code))""",
+           where __EFF__ = %s and (%s::text is null or w.site_code = %s::text) and not exists (
+               select 1 from pallet_locations l where l.pa_code = coalesce(w.ptlt_code, w.vtlt_code))""".replace("__EFF__", EFF_STATUS),
         (WMS_WAITING, sc, sc),
     )["n"]
     return {
