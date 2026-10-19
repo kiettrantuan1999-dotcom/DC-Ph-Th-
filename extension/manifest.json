@@ -1,14 +1,24 @@
 {
   "manifest_version": 3,
   "name": "Định vị PA – Đồng bộ WMS",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Tự lấy dữ liệu tồn kho theo Bin từ WMS Supra và cập nhật vào app Định vị PA.",
-  "permissions": ["webRequest", "storage", "alarms"],
+  "permissions": [
+    "webRequest",
+    "storage",
+    "alarms"
+  ],
   "host_permissions": [
     "https://api-supra.winmart.vn/*",
+    "https://wms-supra.winmart.vn/*",
     "https://*.up.railway.app/*"
   ],
-  "background": { "service_worker": "background.js" },
+  "background": {
+    "service_worker": "background.js"
+  },
   "options_page": "options.html",
-  "action": { "default_title": "Định vị PA – Đồng bộ WMS", "default_popup": "options.html" }
+  "action": {
+    "default_title": "Định vị PA – Đồng bộ WMS",
+    "default_popup": "options.html"
+  }
 }

@@ -4,4 +4,5 @@ self.CAU_HINH_MAC_DINH = {
   dc: "DC Phú Thọ",
   appUrl: "https://dc-ph-th-production.up.railway.app",
   token: "",
+  wmsUrls: ["https://wms-supra.winmart.vn/sft3/app/dashboard"],
 };

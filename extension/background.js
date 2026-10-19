@@ -12,7 +12,7 @@ importScripts("config.js");
 const HEADER_KEYS = ["apisid", "authorization", "scid", "sid", "token", "usid", "warehouse", "appid"];
 const SIGN_KEYS = ["x-signature", "x-signature-nonce"];
 const WMS_HOST = "https://api-supra.winmart.vn";
-const VERSION = "1.0.0";
+const VERSION = "1.2.0";
 
 // Mỗi hệ thống WMS một đường dẫn báo cáo tồn Bin
 const REPORTS = {
@@ -47,6 +47,29 @@ async function ghiNhatKy(dong) {
 }
 
 // ---------------------------------------------------------------- 1. Bắt session từ WMS
+
+// Ghi lại vài yêu cầu WMS gần nhất để trang Tuỳ chọn giải thích được vì sao chưa lấy được session
+let chanDoan = { so: 0, gan: [] };
+let henGhi = null;
+function ghiChanDoan(d) {
+  chanDoan.so += 1;
+  chanDoan.gan = [d, ...chanDoan.gan.filter((x) => x.duongDan !== d.duongDan)].slice(0, 6);
+  if (henGhi) return;
+  henGhi = setTimeout(() => {
+    henGhi = null;
+    set({ chanDoan: { ...chanDoan, luc: new Date().toISOString() } });
+  }, 2000);
+}
+
+/** Tên kho: ưu tiên header "warehouse", sau đó tham số WhCode, cuối cùng suy từ đường dẫn
+ *  (/sft3-ptd/... → PTD, /bdd/... → BDD). */
+function doanKho(h, url, phan) {
+  const tuDuongDan = /^sft3-(.+)$/i.exec(phan[0] || "")?.[1] || (phan[0] || "");
+  const thu = h.warehouse || url.searchParams.get("WhCode") || url.searchParams.get("whCode")
+    || (tuDuongDan.length <= 6 && !/^api$/i.test(tuDuongDan) ? tuDuongDan : "");
+  return (thu || "").trim().toUpperCase();
+}
+
 chrome.webRequest.onBeforeSendHeaders.addListener(
   (chiTiet) => {
     const h = {};
@@ -54,10 +77,13 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
       const k = name.toLowerCase();
       if (HEADER_KEYS.includes(k) || SIGN_KEYS.includes(k)) h[k] = value;
     }
-    const wh = (h.warehouse || "").trim();
-    if (!wh || !h.token || !h.authorization || !h.sid) return;   // chưa đăng nhập xong
     const url = new URL(chiTiet.url);
-    const base = `${url.origin}/${url.pathname.split("/").filter(Boolean)[0] || ""}`;
+    const phan = url.pathname.split("/").filter(Boolean);
+    const base = `${url.origin}/${phan[0] || ""}`;
+    const wh = doanKho(h, url, phan);
+    const thieu = ["authorization", "token", "usid"].filter((k) => !h[k]);
+    ghiChanDoan({ duongDan: url.pathname, wh, co: Object.keys(h).sort().join(" "), thieu: thieu.join(" ") });
+    if (!wh || thieu.length) return;        // chưa đăng nhập xong / không phải request của WMS
     luuSession(wh, { wh, base, headers: h, at: new Date().toISOString() });
   },
   { urls: [`${WMS_HOST}/*`] },
@@ -69,6 +95,8 @@ function luuSession(wh, phien) {
   dangLuu = dangLuu.then(async () => {
     const { sessions = {} } = await get("sessions");
     const cu = sessions[wh];
+    // Mỗi màn hình WMS gửi một số header; gộp lại để đủ bộ (header mới đè header cũ).
+    if (cu && cu.base === phien.base) phien.headers = { ...cu.headers, ...phien.headers };
     // chỉ ghi khi có thay đổi thật sự, tránh ghi liên tục
     const giongNhau = cu && cu.base === phien.base &&
       HEADER_KEYS.concat(SIGN_KEYS).every((k) => (cu.headers[k] || "") === (phien.headers[k] || ""));
@@ -106,7 +134,10 @@ async function tenMay() {
 }
 
 async function hoiViec() {
-  const body = JSON.stringify({ host: await tenMay(), version: VERSION, auto_minutes: 0 });
+  const { sessions = {} } = await get("sessions");
+  // chưa có session nào thì chỉ báo online, không nhận việc (để máy khác có session nhận)
+  const body = JSON.stringify({ host: await tenMay(), version: VERSION, auto_minutes: 0,
+                                ready: Object.keys(sessions).length > 0 });
   const r = await goiApp("/api/agent/poll", {
     method: "POST", body, headers: { "Content-Type": "application/json" },
   });
@@ -137,8 +168,10 @@ async function taiBaoCao(phien) {
 
 async function lamViec(job) {
   const { sessions = {} } = await get("sessions");
+  const timSession = (wh) =>
+    sessions[wh] || Object.values(sessions).find((s) => (s.wh || "").toUpperCase() === wh.toUpperCase());
   const khoCanLay = (job.warehouses && job.warehouses.length ? job.warehouses : Object.keys(sessions));
-  const thieu = khoCanLay.filter((wh) => !sessions[wh]);
+  const thieu = khoCanLay.filter((wh) => !timSession(wh));
   if (thieu.length) {
     const msg = `Chưa có session kho ${thieu.join(", ")} – mở WMS và chọn kho đó một lần`;
     await goiApp(`/api/agent/jobs/${job.id}/error`, {
@@ -151,7 +184,7 @@ async function lamViec(job) {
   for (let i = 0; i < khoCanLay.length; i++) {
     const wh = khoCanLay[i];
     try {
-      const { blob, ten } = await taiBaoCao(sessions[wh]);
+      const { blob, ten } = await taiBaoCao(timSession(wh));
       const r = await goiApp(`/api/agent/jobs/${job.id}/result`, {
         method: "POST", body: blob,
         headers: { "Content-Type": "application/octet-stream", "X-File-Name": ten,

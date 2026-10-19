@@ -665,6 +665,7 @@ class AgentPoll(BaseModel):
     host: str = Field(max_length=100)
     version: str = Field("", max_length=20)
     auto_minutes: int = Field(0, ge=0, le=1440)
+    ready: bool = True       # False = máy chưa có session WMS → chỉ báo online, không nhận việc
 
 
 @app.post("/api/agent/ping", include_in_schema=False)
@@ -679,6 +680,8 @@ def agent_poll(body: AgentPoll, _: None = Depends(require_agent)):
     """Máy đồng bộ gọi mỗi vài giây: báo online + nhận việc (nếu có)."""
     wms_sync.heartbeat(body.host, body.auto_minutes, body.version)
     wms_sync.expire_stale()
+    if not body.ready:
+        return {"job": None}
     job = wms_sync.claim(body.host, body.auto_minutes)
     if not job:
         return {"job": None}

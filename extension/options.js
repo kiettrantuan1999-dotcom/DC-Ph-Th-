@@ -23,6 +23,15 @@ async function nap() {
         <td class="muted">${x.headers.usid || ""}</td>
         <td class="muted">${new Date(x.at).toLocaleString("vi-VN")}</td></tr>`).join("")
     : `<tr><td class="muted">Chưa có. Mở WMS, chọn kho cần lấy dữ liệu rồi quay lại đây.</td></tr>`;
+  const cd = s.chanDoan;
+  $("chanDoanTom").textContent = cd
+    ? `${cd.so} yêu cầu từ lần khởi động gần nhất · cập nhật ${new Date(cd.luc).toLocaleString("vi-VN")}`
+    : "Chưa thấy yêu cầu nào tới api-supra.winmart.vn. Hãy mở WMS và bấm vào một màn hình có dữ liệu.";
+  $("bangChanDoan").innerHTML = (cd && cd.gan && cd.gan.length)
+    ? `<tr><td class="kho">Kho</td><td class="muted">Đường dẫn</td><td class="muted">Header có</td><td class="muted">Thiếu</td></tr>`
+      + cd.gan.map((x) => `<tr><td class="kho">${x.wh || "?"}</td><td class="muted">${x.duongDan}</td>
+          <td class="muted">${x.co || "(không có)"}</td><td class="muted">${x.thieu || "–"}</td></tr>`).join("")
+    : "";
   $("log").textContent = (s.log || []).join("\n") || "(trống)";
 }
 
@@ -41,7 +50,9 @@ $("dongbo").addEventListener("click", () => {
   chrome.runtime.sendMessage("dongbo-ngay", () => setTimeout(nap, 2000));
 });
 
-$("moWms").addEventListener("click", () => chrome.tabs.create({ url: "https://wms-supra.winmart.vn/" }));
+const WMS_URLS = MAC_DINH.wmsUrls && MAC_DINH.wmsUrls.length
+  ? MAC_DINH.wmsUrls : ["https://wms-supra.winmart.vn/sft3/app/dashboard"];
+$("moWms").addEventListener("click", () => WMS_URLS.forEach((u) => chrome.tabs.create({ url: u })));
 
 nap();
 setInterval(nap, 4000);
